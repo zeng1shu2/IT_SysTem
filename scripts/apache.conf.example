@@ -1,0 +1,31 @@
+# Apache 配置示例 — IT_SysTem_OS
+# 部署到 openEuler: /etc/httpd/conf.d/it-system-os.conf
+# 部署后执行: sudo systemctl reload httpd
+
+# 监听 80 端口
+<VirtualHost *:80>
+    ServerName your-server-ip
+    DocumentRoot /var/www/it-system-os
+
+    # 前端静态文件
+    <Directory "/var/www/it-system-os">
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+        # Vue Router history 模式支持
+        FallbackResource /index.html
+    </Directory>
+
+    # 反向代理后端 API
+    ProxyPreserveHost On
+    ProxyPass /api/ http://127.0.0.1:8000/api/
+    ProxyPassReverse /api/ http://127.0.0.1:8000/api/
+
+    # 日志
+    ErrorLog /var/log/httpd/it-system-os-error.log
+    CustomLog /var/log/httpd/it-system-os-access.log combined
+</VirtualHost>
+
+# 需要启用的 Apache 模块:
+#   sudo dnf install httpd mod_proxy mod_proxy_http
+#   sudo systemctl enable --now httpd
