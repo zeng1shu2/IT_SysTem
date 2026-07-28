@@ -9,6 +9,35 @@ from app.services.audit_service import log_operation
 from app.schemas.asset import AssetCreate, AssetUpdate
 
 
+# Field labels for Chinese error messages
+UNIQUE_FIELD_LABELS = {
+    "device_name": "设备名称",
+    "ip_address": "管理IP",
+    "it_asset_code": "IT资产编码",
+    "financial_asset_code": "财务资产编码",
+}
+
+
+def _check_unique_constraints(
+    db: Session,
+    data: dict,
+    exclude_asset_id: int | None = None,
+) -> None:
+    """Raise 409 if any unique field value is already used by another asset."""
+    for field, label in UNIQUE_FIELD_LABELS.items():
+        value = data.get(field)
+        if value is None:
+            continue
+        query = db.query(Asset).filter(getattr(Asset, field) == value)
+        if exclude_asset_id is not None:
+            query = query.filter(Asset.id != exclude_asset_id)
+        if query.first() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"{label}「{value}」已存在，请更换",
+            )
+
+
 def get_assets(
     db: Session,
     skip: int = 0,
@@ -48,6 +77,7 @@ def get_asset_by_id(db: Session, asset_id: int) -> Asset:
 
 def create_asset(db: Session, asset_create: AssetCreate, operator: str, operator_ip: str) -> Asset:
     """Create a new asset."""
+    _check_unique_constraints(db, asset_create.model_dump())
     asset = Asset(**asset_create.model_dump())
     db.add(asset)
     db.commit()
@@ -71,6 +101,8 @@ def update_asset(db: Session, asset_id: int, asset_update: AssetUpdate, operator
     asset = get_asset_by_id(db, asset_id)
     old_values = {}
     update_data = asset_update.model_dump(exclude_unset=True)
+
+    _check_unique_constraints(db, update_data, exclude_asset_id=asset_id)
 
     for field, value in update_data.items():
         old_values[field] = getattr(asset, field)

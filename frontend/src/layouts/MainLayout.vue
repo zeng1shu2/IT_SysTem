@@ -8,6 +8,7 @@
       </div>
       <el-menu
         :default-active="route.path"
+        :default-openeds="['/asset']"
         :collapse="appStore.sidebarCollapsed"
         router
         background-color="#304156"
@@ -15,7 +16,40 @@
         active-text-color="#409EFF"
         class="sidebar-menu"
       >
-        <template v-for="item in menuItems" :key="item.path">
+        <!-- Asset Management Sub-menu -->
+        <el-sub-menu index="/asset">
+          <template #title>
+            <el-icon><Monitor /></el-icon>
+            <span>资产管理</span>
+          </template>
+          <el-menu-item index="/asset/statistics">
+            <el-icon><DataAnalysis /></el-icon>
+            <template #title>资产统计</template>
+          </el-menu-item>
+          <el-menu-item index="/asset/port-connection">
+            <el-icon><Connection /></el-icon>
+            <template #title>端口互联</template>
+          </el-menu-item>
+          <el-menu-item index="/asset/ip-plan">
+            <el-icon><Grid /></el-icon>
+            <template #title>IP地址规划</template>
+          </el-menu-item>
+          <el-menu-item index="/asset/interconnect-ip">
+            <el-icon><Share /></el-icon>
+            <template #title>互联IP</template>
+          </el-menu-item>
+          <el-menu-item index="/asset/external-broadband">
+            <el-icon><Position /></el-icon>
+            <template #title>外线宽带</template>
+          </el-menu-item>
+          <el-menu-item index="/asset/license">
+            <el-icon><Key /></el-icon>
+            <template #title>授权管理</template>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <!-- Flat menu items -->
+        <template v-for="item in flatMenuItems" :key="item.path">
           <el-menu-item :index="item.path">
             <el-icon><component :is="item.icon" /></el-icon>
             <template #title>{{ item.title }}</template>
@@ -34,7 +68,9 @@
           </el-icon>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item v-if="route.meta.title">{{ route.meta.title }}</el-breadcrumb-item>
+            <el-breadcrumb-item v-for="matched in route.matched.filter(m => m.meta?.title)" :key="matched.path" :to="matched.path !== route.path ? { path: matched.path } : undefined">
+              {{ matched.meta.title }}
+            </el-breadcrumb-item>
           </el-breadcrumb>
         </div>
         <div class="header-right">
@@ -69,22 +105,26 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessageBox } from 'element-plus'
+import {
+  Monitor, DataAnalysis, Connection, Grid, Share, Position, Key,
+  Fold, Expand, UserFilled, SwitchButton,
+} from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const appStore = useAppStore()
 
-const menuItems = computed(() => {
+const flatMenuItems = computed(() => {
   const items = [
-    { path: '/asset', title: '资产管理', icon: 'Monitor' },
     { path: '/permission', title: '权限管理', icon: 'Key' },
   ]
   if (userStore.isAdmin) {
     items.push(
       { path: '/user', title: '用户管理', icon: 'User' },
       { path: '/role', title: '角色管理', icon: 'UserFilled' },
-      { path: '/audit', title: '审计日志', icon: 'Document' }
+      { path: '/audit', title: '审计日志', icon: 'Document' },
+      { path: '/designer', title: '表单设计', icon: 'EditPen' }
     )
   }
   return items

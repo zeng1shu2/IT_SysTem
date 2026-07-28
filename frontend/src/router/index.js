@@ -15,9 +15,47 @@ const routes = [
     children: [
       {
         path: 'asset',
-        name: 'Asset',
-        component: () => import('@/views/asset/index.vue'),
+        component: () => import('@/layouts/AssetLayout.vue'),
+        redirect: '/asset/statistics',
         meta: { title: '资产管理', icon: 'Monitor' },
+        children: [
+          {
+            path: 'statistics',
+            name: 'AssetStatistics',
+            component: () => import('@/views/asset/index.vue'),
+            meta: { title: '资产统计', icon: 'DataAnalysis' },
+          },
+          {
+            path: 'port-connection',
+            name: 'PortConnection',
+            component: () => import('@/views/asset/port-connection.vue'),
+            meta: { title: '端口互联', icon: 'Connection' },
+          },
+          {
+            path: 'ip-plan',
+            name: 'IPPlan',
+            component: () => import('@/views/asset/ip-plan.vue'),
+            meta: { title: 'IP地址规划', icon: 'Grid' },
+          },
+          {
+            path: 'interconnect-ip',
+            name: 'InterconnectIP',
+            component: () => import('@/views/asset/interconnect-ip.vue'),
+            meta: { title: '互联IP', icon: 'Share' },
+          },
+          {
+            path: 'external-broadband',
+            name: 'ExternalBroadband',
+            component: () => import('@/views/asset/external-broadband.vue'),
+            meta: { title: '外线宽带', icon: 'Position' },
+          },
+          {
+            path: 'license',
+            name: 'License',
+            component: () => import('@/views/asset/license.vue'),
+            meta: { title: '授权管理', icon: 'Key' },
+          },
+        ],
       },
       {
         path: 'permission',
@@ -42,6 +80,12 @@ const routes = [
         name: 'Audit',
         component: () => import('@/views/audit/index.vue'),
         meta: { title: '审计日志', icon: 'Document', adminOnly: true },
+      },
+      {
+        path: 'designer',
+        name: 'Designer',
+        component: () => import('@/views/designer/index.vue'),
+        meta: { title: '表单设计', icon: 'EditPen', adminOnly: true },
       },
     ],
   },

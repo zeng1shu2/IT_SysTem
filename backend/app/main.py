@@ -9,6 +9,13 @@ from app.api.v1 import api_router
 from app.core.config import settings
 from app.database import Base, engine
 
+# Import all models so tables are created
+import app.models.user  # noqa: F401
+import app.models.role  # noqa: F401
+import app.models.asset  # noqa: F401
+import app.models.asset_modules  # noqa: F401
+import app.models.form_config  # noqa: F401
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +56,139 @@ async def lifespan(app: FastAPI):
                 db.add(role)
             db.commit()
             print("[Startup] Created default roles")
+
+        # Seed form configs
+        from app.models.form_config import FormConfig
+        import json
+
+        def _seed_form_config(db, code, name, description, schema_list):
+            """Upsert form config: delete old and create new if schema changed."""
+            existing = db.query(FormConfig).filter(FormConfig.code == code).first()
+            new_schema = json.dumps(schema_list, ensure_ascii=False)
+            if existing:
+                # Update existing config with new schema
+                existing.form_schema = new_schema
+                existing.name = name
+                db.commit()
+                return False  # updated
+            form_cfg = FormConfig(
+                code=code, name=name, description=description,
+                form_schema=new_schema, is_active=True, created_by="system",
+            )
+            db.add(form_cfg)
+            db.commit()
+            return True  # created
+
+        # --- Asset form (updated with it_asset_code, financial_asset_code) ---
+        _seed_form_config(db, "asset_form", "资产统计表单", "资产统计页面的动态表单配置", [
+            {"type": "divider", "label": "基础信息", "span": 24},
+            {"type": "input", "label": "设备名称", "prop": "device_name", "required": True, "span": 12, "placeholder": "如：核心交换机-01"},
+            {"type": "select", "label": "设备类型", "prop": "device_type", "required": True, "span": 12, "defaultValue": "switch", "options": [
+                {"label": "交换机", "value": "switch"}, {"label": "路由器", "value": "router"},
+                {"label": "防火墙", "value": "firewall"}, {"label": "安全设备", "value": "security"},
+                {"label": "其他设备", "value": "other"},
+            ]},
+            {"type": "input", "label": "品牌", "prop": "brand", "span": 12, "placeholder": "如：华为"},
+            {"type": "input", "label": "型号", "prop": "model", "span": 12, "placeholder": "如：S5700-28C-HI"},
+            {"type": "divider", "label": "资产编码", "span": 24},
+            {"type": "input", "label": "IT资产编码", "prop": "it_asset_code", "span": 12, "placeholder": "如：IT-2024-0001"},
+            {"type": "input", "label": "财务资产编码", "prop": "financial_asset_code", "span": 12, "placeholder": "如：FA-2024-0001"},
+            {"type": "divider", "label": "网络信息", "span": 24},
+            {"type": "input", "label": "管理IP", "prop": "ip_address", "span": 12, "placeholder": "如：192.168.1.1"},
+            {"type": "input", "label": "MAC地址", "prop": "mac_address", "span": 12, "placeholder": "如：00:1A:2B:3C:4D:5E"},
+            {"type": "divider", "label": "设备特性（动态）", "span": 24},
+            {"type": "number", "label": "端口数", "prop": "port_count", "span": 12, "defaultValue": 24, "min": 1, "max": 9999, "visibleWhen": {"prop": "device_type", "equals": "switch"}},
+            {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200", "visibleWhen": {"prop": "device_type", "equals": "switch"}},
+            {"type": "select", "label": "路由协议", "prop": "protocol", "span": 12, "defaultValue": [], "options": [
+                {"label": "OSPF", "value": "ospf"}, {"label": "BGP", "value": "bgp"},
+                {"label": "RIP", "value": "rip"}, {"label": "静态路由", "value": "static"},
+            ], "visibleWhen": {"prop": "device_type", "equals": "router"}},
+            {"type": "number", "label": "WAN口数", "prop": "wan_count", "span": 12, "min": 0, "max": 16, "visibleWhen": {"prop": "device_type", "equals": "router"}},
+            {"type": "select", "label": "安全域", "prop": "security_zone", "span": 12, "options": [
+                {"label": "Trust（信任）", "value": "trust"}, {"label": "Untrust（不信任）", "value": "untrust"},
+                {"label": "DMZ（隔离区）", "value": "dmz"}, {"label": "自定义", "value": "custom"},
+            ], "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
+            {"type": "number", "label": "策略数", "prop": "policy_count", "span": 12, "defaultValue": 0, "min": 0, "max": 9999, "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
+            {"type": "select", "label": "安全子类", "prop": "sub_type", "span": 12, "options": [
+                {"label": "IDS（入侵检测）", "value": "ids"}, {"label": "IPS（入侵防御）", "value": "ips"},
+                {"label": "WAF（Web应用防火墙）", "value": "waf"}, {"label": "上网行为管理", "value": "behavior"},
+            ], "visibleWhen": {"prop": "device_type", "equals": "security"}},
+            {"type": "rate", "label": "防护级别", "prop": "protection_level", "span": 12, "defaultValue": 3, "max": 5, "visibleWhen": {"prop": "device_type", "equals": "security"}},
+            {"type": "textarea", "label": "设备描述", "prop": "description", "span": 24, "rows": 2, "placeholder": "请描述设备用途...", "visibleWhen": {"prop": "device_type", "equals": "other"}},
+            {"type": "divider", "label": "位置与状态", "span": 24},
+            {"type": "input", "label": "序列号", "prop": "serial_number", "span": 12, "placeholder": "设备序列号"},
+            {"type": "select", "label": "状态", "prop": "status", "required": True, "span": 12, "defaultValue": "in_use", "options": [
+                {"label": "使用中", "value": "in_use"}, {"label": "空闲", "value": "idle"},
+                {"label": "故障", "value": "fault"}, {"label": "维护中", "value": "maintenance"},
+                {"label": "已报废", "value": "scrap"},
+            ]},
+            {"type": "input", "label": "存放位置", "prop": "location", "span": 24, "placeholder": "如：机房A-机柜03-U12"},
+            {"type": "date", "label": "采购日期", "prop": "purchase_date", "span": 12},
+            {"type": "date", "label": "保修到期", "prop": "warranty_expire", "span": 12},
+            {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
+        ])
+
+        # --- IP Plan form ---
+        _seed_form_config(db, "ip_plan_form", "IP地址规划表单", "IP地址规划页面的动态表单配置", [
+            {"type": "divider", "label": "基本信息", "span": 24},
+            {"type": "input", "label": "部门", "prop": "department", "span": 12, "placeholder": "如：运维部"},
+            {"type": "input", "label": "小组", "prop": "group_name", "span": 12, "placeholder": "如：网络组"},
+            {"type": "input", "label": "IP段", "prop": "ip_range", "required": True, "span": 12, "placeholder": "如：192.168.1.0/24"},
+            {"type": "input", "label": "VLAN", "prop": "vlan", "span": 12, "placeholder": "如：VLAN 100"},
+            {"type": "select", "label": "使用状态", "prop": "usage_status", "span": 12, "defaultValue": "available", "options": [
+                {"label": "可用", "value": "available"}, {"label": "已使用", "value": "used"},
+                {"label": "已保留", "value": "reserved"},
+            ]},
+            {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
+        ])
+
+        # --- Interconnect IP form ---
+        _seed_form_config(db, "interconnect_ip_form", "互联IP表单", "互联IP页面的动态表单配置", [
+            {"type": "divider", "label": "IP信息", "span": 24},
+            {"type": "input", "label": "IP地址范围", "prop": "ip_range", "required": True, "span": 24, "placeholder": "如：10.0.0.1-10.0.0.10"},
+            {"type": "divider", "label": "源端", "span": 24},
+            {"type": "input", "label": "源设备", "prop": "source_device_name", "span": 12, "placeholder": "选择或输入源设备名称"},
+            {"type": "input", "label": "源接口", "prop": "source_interface", "span": 12, "placeholder": "如：GigabitEthernet0/0/1"},
+            {"type": "divider", "label": "目的端", "span": 24},
+            {"type": "input", "label": "目的设备", "prop": "dest_device_name", "span": 12, "placeholder": "选择或输入目的设备名称"},
+            {"type": "input", "label": "目的接口", "prop": "dest_interface", "span": 12, "placeholder": "如：GigabitEthernet0/0/2"},
+            {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
+        ])
+
+        # --- External Broadband form ---
+        _seed_form_config(db, "external_broadband_form", "外线宽带表单", "外线宽带页面的动态表单配置", [
+            {"type": "divider", "label": "线路信息", "span": 24},
+            {"type": "select", "label": "运营商", "prop": "operator", "span": 12, "options": [
+                {"label": "中国电信", "value": "电信"}, {"label": "中国联通", "value": "联通"},
+                {"label": "中国移动", "value": "移动"}, {"label": "其他", "value": "其他"},
+            ]},
+            {"type": "select", "label": "线路类型", "prop": "line_type", "span": 12, "options": [
+                {"label": "专线", "value": "专线"}, {"label": "宽带", "value": "宽带"},
+                {"label": "光纤", "value": "光纤"}, {"label": "其他", "value": "其他"},
+            ]},
+            {"type": "input", "label": "IP", "prop": "ip_address", "span": 12, "placeholder": "如：202.96.128.86"},
+            {"type": "input", "label": "掩码", "prop": "mask", "span": 12, "placeholder": "如：255.255.255.252"},
+            {"type": "input", "label": "网关", "prop": "gateway", "span": 12, "placeholder": "如：202.96.128.85"},
+            {"type": "input", "label": "拨号账号/接入号", "prop": "dial_account", "span": 12, "placeholder": "拨号账号或接入号"},
+            {"type": "input", "label": "对应VLAN", "prop": "vlan", "span": 12, "placeholder": "如：VLAN 100"},
+            {"type": "input", "label": "线路带宽", "prop": "bandwidth", "span": 12, "placeholder": "如：100M"},
+            {"type": "input", "label": "线路归属", "prop": "ownership", "span": 12, "placeholder": "如：总部/分公司A"},
+            {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
+        ])
+
+        # --- License Management form ---
+        _seed_form_config(db, "license_form", "授权管理表单", "授权管理页面的动态表单配置", [
+            {"type": "divider", "label": "授权信息", "span": 24},
+            {"type": "input", "label": "厂商", "prop": "vendor", "span": 12, "placeholder": "如：华为"},
+            {"type": "input", "label": "设备类型", "prop": "device_type", "span": 12, "placeholder": "如：防火墙"},
+            {"type": "input", "label": "设备名称", "prop": "device_name", "span": 12, "placeholder": "关联资产统计中的设备"},
+            {"type": "input", "label": "授权码", "prop": "license_key", "span": 12, "placeholder": "授权码/序列号"},
+            {"type": "date", "label": "激活日期", "prop": "activation_date", "span": 12},
+            {"type": "date", "label": "到期日期", "prop": "expiration_date", "span": 12},
+            {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
+        ])
+
+        print("[Startup] Form configs seeded/updated")
     finally:
         db.close()
 

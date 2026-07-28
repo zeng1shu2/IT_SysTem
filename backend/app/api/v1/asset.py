@@ -20,7 +20,7 @@ router = APIRouter()
 @router.get("", response_model=AssetListResponse, summary="获取资产列表")
 def list_assets(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     keyword: str | None = Query(None),
     device_type: str | None = Query(None, description="设备类型: switch/router/firewall/security/other"),
     status: str | None = Query(None, description="状态: in_use/idle/fault/maintenance/scrap"),

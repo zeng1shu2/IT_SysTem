@@ -35,17 +35,20 @@ request.interceptors.response.use(
       const { status, data } = error.response
       const message = data?.detail || data?.message || '请求失败'
 
-      if (status === 401) {
-        ElMessage.error('登录已过期，请重新登录')
-        const userStore = useUserStore()
-        userStore.logout()
-        router.push('/login')
-      } else if (status === 403) {
-        ElMessage.error('权限不足')
-      } else if (status === 404) {
-        ElMessage.error('资源不存在')
-      } else {
-        ElMessage.error(message)
+      // Skip error toast if the calling code requests it
+      if (!error.config?.skipErrorHandler) {
+        if (status === 401) {
+          ElMessage.error('登录已过期，请重新登录')
+          const userStore = useUserStore()
+          userStore.logout()
+          router.push('/login')
+        } else if (status === 403) {
+          ElMessage.error('权限不足')
+        } else if (status === 404) {
+          ElMessage.error('资源不存在')
+        } else {
+          ElMessage.error(message)
+        }
       }
     } else if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请稍后重试')
