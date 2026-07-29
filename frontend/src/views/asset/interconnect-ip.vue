@@ -206,25 +206,39 @@ const editForm = reactive({
 const assetOptions = ref([])
 const portConnections = ref([])
 
-// Computed interface lists based on selected device
+// Computed interface lists based on selected device (physical ports + logical interfaces)
 const sourceInterfaces = computed(() => {
   if (!editForm.source_device_id) return []
   const pc = portConnections.value.find(p => p.asset_id === editForm.source_device_id)
-  if (!pc || !pc.ports_data) return []
-  return pc.ports_data.map(p => ({
+  if (!pc) return []
+  const physical = (pc.ports_data || []).map(p => ({
     label: p.name || `端口${p.index}`,
     value: p.name || `端口${p.index}`,
   }))
+  const logical = (pc.logical_interfaces || [])
+    .filter(li => li.name)
+    .map(li => ({
+      label: `${li.name} (${li.type === 'vlanif' ? 'VLANIF' : 'Eth-Trunk'})`,
+      value: li.name,
+    }))
+  return [...physical, ...logical]
 })
 
 const destInterfaces = computed(() => {
   if (!editForm.dest_device_id) return []
   const pc = portConnections.value.find(p => p.asset_id === editForm.dest_device_id)
-  if (!pc || !pc.ports_data) return []
-  return pc.ports_data.map(p => ({
+  if (!pc) return []
+  const physical = (pc.ports_data || []).map(p => ({
     label: p.name || `端口${p.index}`,
     value: p.name || `端口${p.index}`,
   }))
+  const logical = (pc.logical_interfaces || [])
+    .filter(li => li.name)
+    .map(li => ({
+      label: `${li.name} (${li.type === 'vlanif' ? 'VLANIF' : 'Eth-Trunk'})`,
+      value: li.name,
+    }))
+  return [...physical, ...logical]
 })
 
 function onSourceDeviceChange(assetId) {

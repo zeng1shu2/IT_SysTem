@@ -23,7 +23,14 @@
       </div>
       <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%" @row-dblclick="handleDetail">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="asset_name" label="设备名称" min-width="150" />
+        <el-table-column label="设备名称" min-width="160">
+          <template #default="{ row }">
+            <div class="device-name-cell">
+              <span class="device-emoji">{{ deviceTypeEmoji(getDeviceType(row.asset_id)) }}</span>
+              <span>{{ row.asset_name }}</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="port_count" label="物理端口数" width="100" />
         <el-table-column label="物理端口概况" min-width="180">
           <template #default="{ row }">
@@ -70,29 +77,27 @@
     <!-- Detail Drawer -->
     <el-drawer v-model="detailVisible" title="端口互联详情" size="65%">
       <div v-if="detailData" class="detail-body">
+        <!-- Hero banner: device icon + name + type/brand (mirrors asset/index.vue detail-hero) -->
+        <div class="detail-hero">
+          <div class="detail-hero-icon" :style="{ background: deviceTypeColor(detailDeviceType) }">
+            <span class="detail-hero-emoji">{{ deviceTypeEmoji(detailDeviceType) }}</span>
+          </div>
+          <div class="detail-hero-info">
+            <div class="detail-hero-name">{{ detailData.asset_name || '—' }}</div>
+            <div class="detail-hero-meta">
+              <el-tag :color="deviceTypeColor(detailDeviceType)" effect="dark" size="small" round>
+                {{ deviceTypeLabelFn(detailDeviceType) }}
+              </el-tag>
+              <span class="detail-hero-brand">{{ detailBrand || '未知品牌' }} · {{ detailModel || '型号未知' }}</span>
+            </div>
+          </div>
+        </div>
+
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="设备名称">{{ detailData.asset_name || '—' }}</el-descriptions-item>
           <el-descriptions-item label="物理端口数">{{ detailData.port_count }}</el-descriptions-item>
           <el-descriptions-item label="逻辑接口数">{{ (detailData.logical_interfaces || []).length }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ detailData.remark || '—' }}</el-descriptions-item>
         </el-descriptions>
-
-        <!-- Physical ports detail -->
-        <div v-if="detailData.ports_data && detailData.ports_data.length > 0">
-          <div class="section-title">物理端口配置 ({{ detailData.ports_data.length }} 个)</div>
-          <el-table :data="detailData.ports_data" border size="small">
-            <el-table-column prop="index" label="#" width="50" />
-            <el-table-column prop="name" label="端口名称" min-width="140" />
-            <el-table-column prop="connected_device" label="对端设备" min-width="120" />
-            <el-table-column prop="connected_interface" label="对端接口" min-width="120" />
-            <el-table-column prop="status" label="状态" width="80">
-              <template #default="{ row }">
-                <el-tag :type="row.status === 'up' ? 'success' : 'info'" size="small">{{ row.status || '—' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="remark" label="备注" min-width="100" show-overflow-tooltip />
-          </el-table>
-        </div>
 
         <!-- Logical interfaces detail -->
         <div v-if="detailData.logical_interfaces && detailData.logical_interfaces.length > 0">
@@ -118,6 +123,21 @@
               </el-table-column>
             </template>
             <template v-if="hasEthTrunk(detailData.logical_interfaces)">
+              <el-table-column label="网络类型" width="100">
+                <template #default="{ row }">
+                  <span v-if="row.type === 'eth-trunk'">{{ NET_TYPE_LABEL[row.net_type] || 'Access' }}</span>
+                  <span v-else>—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="VLAN配置" min-width="130">
+                <template #default="{ row }">
+                  <span v-if="row.type === 'eth-trunk'">
+                    <span v-if="row.net_type === 'access'">{{ row.vlan_id || '—' }}</span>
+                    <span v-else>{{ row.vlan_range || '—' }}</span>
+                  </span>
+                  <span v-else>—</span>
+                </template>
+              </el-table-column>
               <el-table-column label="成员端口" min-width="200">
                 <template #default="{ row }">
                   <span v-if="row.type === 'eth-trunk' && row.member_ports && row.member_ports.length > 0">
@@ -129,6 +149,75 @@
             </template>
             <el-table-column prop="remark" label="备注" min-width="100" show-overflow-tooltip />
           </el-table>
+        </div>
+
+        <!-- Physical ports detail -->
+        <div v-if="detailData.ports_data && detailData.ports_data.length > 0">
+          <div class="section-title">物理端口配置 ({{ detailData.ports_data.length }} 个)</div>
+          <el-table :data="detailPagedPorts" border size="small" style="width: 100%">
+          <el-table-column prop="index" label="#" width="48" />
+          <el-table-column prop="name" label="源接口" min-width="110" />
+          <el-table-column label="本端网络类型" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" :type="(detailBoundTrunk(row) ? detailBoundTrunk(row).net_type : row.net_type) === 'access' ? 'info' : ((detailBoundTrunk(row) ? detailBoundTrunk(row).net_type : row.net_type) === 'trunk' ? 'warning' : 'success')">
+                {{ NET_TYPE_LABEL[detailBoundTrunk(row) ? detailBoundTrunk(row).net_type : row.net_type] || 'Access' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="VLAN" min-width="100">
+            <template #default="{ row }">
+              <template v-if="detailBoundTrunk(row)">
+                <span v-if="detailBoundTrunk(row).net_type === 'access'">{{ detailBoundTrunk(row).vlan_id || '—' }}</span>
+                <span v-else>{{ detailBoundTrunk(row).vlan_range || '—' }}</span>
+              </template>
+              <template v-else>
+                <span v-if="row.net_type === 'access'">{{ row.vlan_id || '—' }}</span>
+                <span v-else>{{ row.vlan_range || '—' }}</span>
+              </template>
+            </template>
+          </el-table-column>
+            <el-table-column prop="connected_device" label="目标设备" min-width="90" />
+            <el-table-column prop="connected_interface" label="目标接口" min-width="90" />
+            <el-table-column label="目标网络类型" width="100">
+              <template #default="{ row }">
+                <el-tag size="small" :type="(row.remote_net_type || 'access') === 'access' ? 'info' : ((row.remote_net_type || 'access') === 'trunk' ? 'warning' : 'success')">
+                  {{ NET_TYPE_LABEL[row.remote_net_type] || 'Access' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="对端VLAN" min-width="100">
+              <template #default="{ row }">
+                <span v-if="(row.remote_net_type || 'access') === 'access'">{{ row.remote_vlan_id || '—' }}</span>
+                <span v-else>{{ row.remote_vlan_range || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'up' ? 'success' : 'info'" size="small">{{ row.status || '—' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="捆绑" width="100">
+              <template #default="{ row }">
+                <el-tag v-if="detailBoundTrunk(row)" type="success" size="small" effect="plain">捆绑 {{ detailBoundTrunk(row).name }}</el-tag>
+                <span v-else class="text-muted">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" min-width="90" show-overflow-tooltip />
+          </el-table>
+          <div class="port-pager">
+            <span class="port-pager-total">共 {{ detailData.ports_data.length }} 个端口</span>
+            <el-pagination
+              v-model:current-page="detailPortCurrentPage"
+              v-model:page-size="detailPortPageSize"
+              :total="detailData.ports_data.length"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next"
+              background
+              size="small"
+              @current-change="() => {}"
+              @size-change="() => { detailPortCurrentPage = 1 }"
+            />
+          </div>
         </div>
       </div>
     </el-drawer>
@@ -156,9 +245,11 @@
           </span>
         </el-form-item>
 
-        <el-form-item label="端口数">
-          <el-input-number v-model="portCount" :min="1" :max="999" @change="regeneratePorts" />
-          <span class="hint-text">选择设备后自动填充，可手动调整</span>
+        <el-form-item label="互联端口">
+          <span v-if="ports.length > 0" class="port-summary">
+            已根据资产端口配置自动生成 <b>{{ ports.length }}</b> 个端口（{{ portSummaryText }}）
+          </span>
+          <span v-else class="text-muted">请先在上方选择已配置端口的设备</span>
         </el-form-item>
 
         <el-form-item label="备注">
@@ -166,77 +257,7 @@
         </el-form-item>
       </el-form>
 
-      <!-- Physical Port Table -->
-      <div v-if="ports.length > 0" class="port-section">
-        <div class="port-section-title">
-          <span>物理端口配置 (共 {{ ports.length }} 个端口)</span>
-        </div>
-        <el-table :data="ports" border size="small" style="width: 100%">
-          <el-table-column label="#" width="50" type="index" :index="i => i + 1" />
-          <el-table-column label="端口名称" min-width="160">
-            <template #default="{ row }">
-              <el-input v-model="row.name" size="small" placeholder="如：GigabitEthernet0/0/1" />
-            </template>
-          </el-table-column>
-          <el-table-column label="对端设备" min-width="180">
-            <template #default="{ row }">
-              <el-select
-                v-model="row.connected_device_id"
-                size="small"
-                filterable
-                clearable
-                placeholder="选择对端设备"
-                style="width: 100%"
-                @change="(val) => onRemoteDeviceChange(row, val)"
-              >
-                <el-option
-                  v-for="asset in remoteDeviceOptions(row)"
-                  :key="asset.id"
-                  :label="asset.device_name"
-                  :value="asset.id"
-                />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="对端接口" min-width="180">
-            <template #default="{ row }">
-              <el-select
-                v-model="row.connected_interface"
-                size="small"
-                filterable
-                clearable
-                :placeholder="row.connected_device_id ? '选择对端接口' : '请先选对端设备'"
-                :disabled="!row.connected_device_id"
-                style="width: 100%"
-                @visible-change="(v) => v && loadRemotePorts(row.connected_device_id)"
-              >
-                <el-option
-                  v-for="portName in remotePortOptions(row.connected_device_id)"
-                  :key="portName"
-                  :label="portName"
-                  :value="portName"
-                />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="110">
-            <template #default="{ row }">
-              <el-select v-model="row.status" size="small" style="width: 90px">
-                <el-option label="Up" value="up" />
-                <el-option label="Down" value="down" />
-                <el-option label="未连接" value="disconnected" />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="120">
-            <template #default="{ row }">
-              <el-input v-model="row.remark" size="small" placeholder="备注" />
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <!-- Logical Interface Section -->
+      <!-- Logical Interface Section (placed above physical ports per requirement) -->
       <div v-if="ports.length > 0" class="port-section">
         <div class="port-section-title">
           <span>逻辑接口配置</span>
@@ -277,6 +298,36 @@
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
+          <!-- ETH-TRUNK network config (maps down to bound physical ports, read-only there) -->
+          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="网络类型" width="120">
+            <template #default="{ row }">
+              <el-select v-if="row.type === 'eth-trunk'" v-model="row.net_type" size="small" style="width: 100%">
+                <el-option label="Access" value="access" />
+                <el-option label="Trunk" value="trunk" />
+                <el-option label="Hybrid" value="hybrid" />
+              </el-select>
+              <span v-else class="text-muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="VLAN配置" min-width="170">
+            <template #default="{ row }">
+              <template v-if="row.type === 'eth-trunk'">
+                <el-input
+                  v-if="row.net_type === 'access'"
+                  v-model="row.vlan_id"
+                  size="small"
+                  placeholder="VLAN ID 如：10"
+                />
+                <el-input
+                  v-else
+                  v-model="row.vlan_range"
+                  size="small"
+                  placeholder="VLAN范围 如：10-20,100"
+                />
+              </template>
+              <span v-else class="text-muted">—</span>
+            </template>
+          </el-table-column>
           <!-- ETH-TRUNK member ports -->
           <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="成员端口（关联物理端口）" min-width="280">
             <template #default="{ row }">
@@ -290,6 +341,7 @@
                 collapse-tags-tooltip
                 placeholder="选择物理端口"
                 style="width: 100%"
+                @change="onTrunkMembersChange(row)"
               >
                 <el-option
                   v-for="port in ports"
@@ -315,6 +367,163 @@
         <el-empty v-else description="暂无逻辑接口，点击上方按钮添加" :image-size="60" />
       </div>
 
+      <!-- Physical Port Table -->
+      <div v-if="ports.length > 0" class="port-section">
+        <div class="port-section-title">
+          <span>物理端口配置 (共 {{ ports.length }} 个端口)</span>
+          <el-input
+            v-model="portSearchKeyword"
+            size="small"
+            clearable
+            placeholder="搜索源接口筛选"
+            style="width: 220px; margin-left: auto"
+            @input="portCurrentPage = 1"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+        </div>
+        <el-table :data="pagedPorts" border size="small" style="width: 100%">
+          <el-table-column prop="index" label="#" width="48" />
+          <el-table-column label="源接口" min-width="120">
+            <template #default="{ row }">
+              <el-input v-model="row.name" size="small" :disabled="!!boundTrunk(row)" placeholder="如：GigabitEthernet0/0/1" />
+            </template>
+          </el-table-column>
+          <!-- Network type: editable for all ports (bound ETH-TRUNK ports inherit trunk
+               config as default via onTrunkMembersChange, but remain editable) -->
+          <el-table-column label="本端网络类型" width="110">
+            <template #default="{ row }">
+              <el-select v-model="row.net_type" size="small" style="width: 100%">
+                <el-option label="Access" value="access" />
+                <el-option label="Trunk" value="trunk" />
+                <el-option label="Hybrid" value="hybrid" />
+              </el-select>
+              <div v-if="boundTrunk(row)" class="sc-hint-mini">默认取 {{ boundTrunk(row).name }}</div>
+            </template>
+          </el-table-column>
+          <!-- VLAN config: editable for all ports -->
+          <el-table-column label="VLAN" min-width="140">
+            <template #default="{ row }">
+              <el-input
+                v-if="row.net_type === 'access'"
+                v-model="row.vlan_id"
+                size="small"
+                placeholder="VLAN ID 如：10"
+              />
+              <el-input
+                v-else
+                v-model="row.vlan_range"
+                size="small"
+                :placeholder="row.net_type === 'trunk' ? 'VLAN范围 如：10-20,100' : 'VLAN范围 如：10-20,100'"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="目标设备" min-width="140">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.connected_device_id"
+                size="small"
+                filterable
+                clearable
+                :disabled="false"
+                placeholder="选择对端设备"
+                style="width: 100%"
+                @change="(val) => onRemoteDeviceChange(row, val)"
+              >
+                <el-option
+                  v-for="asset in remoteDeviceOptions(row)"
+                  :key="asset.id"
+                  :label="asset.device_name"
+                  :value="asset.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="目标接口" min-width="140">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.connected_interface"
+                size="small"
+                filterable
+                clearable
+                :placeholder="row.connected_device_id ? '选择对端接口' : '请先选对端设备'"
+                :disabled="!row.connected_device_id"
+                style="width: 100%"
+                @visible-change="(v) => v && loadRemotePorts(row.connected_device_id)"
+              >
+                <el-option
+                  v-for="portName in remotePortOptions(row.connected_device_id)"
+                  :key="portName"
+                  :label="portName"
+                  :value="portName"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <!-- Peer port network type & VLAN (editable even when bound to ETH-TRUNK) -->
+          <el-table-column label="目标网络类型" width="110">
+            <template #default="{ row }">
+              <el-select v-model="row.remote_net_type" size="small" style="width: 100%">
+                <el-option label="Access" value="access" />
+                <el-option label="Trunk" value="trunk" />
+                <el-option label="Hybrid" value="hybrid" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="对端VLAN" min-width="140">
+            <template #default="{ row }">
+              <el-input
+                v-if="(row.remote_net_type || 'access') === 'access'"
+                v-model="row.remote_vlan_id"
+                size="small"
+                placeholder="VLAN ID 如：10"
+              />
+              <el-input
+                v-else
+                v-model="row.remote_vlan_range"
+                size="small"
+                placeholder="VLAN范围 如：10-20,100"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-select v-model="row.status" size="small" style="width: 90px">
+                <el-option label="Up" value="up" />
+                <el-option label="Down" value="down" />
+                <el-option label="未连接" value="disconnected" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="100">
+            <template #default="{ row }">
+              <el-input v-model="row.remark" size="small" :disabled="!!boundTrunk(row)" placeholder="备注" />
+            </template>
+          </el-table-column>
+          <el-table-column label="捆绑" width="110">
+            <template #default="{ row }">
+              <el-tag v-if="boundTrunk(row)" type="success" size="small" effect="plain">捆绑 {{ boundTrunk(row).name }}</el-tag>
+              <span v-else class="text-muted">—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="port-pager">
+          <span class="port-pager-total">共 {{ filteredPorts.length }} 个端口{{ portSearchKeyword ? `（已筛选，全部 ${ports.length} 个）` : '' }}</span>
+          <el-pagination
+            v-model:current-page="portCurrentPage"
+            v-model:page-size="portPageSize"
+            :total="filteredPorts.length"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
+            size="small"
+            @current-change="() => {}"
+            @size-change="() => { portCurrentPage = 1 }"
+          />
+        </div>
+      </div>
+
+
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
@@ -324,12 +533,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getPortConnections, getPortConnection, getPortConnectionByAssetId, createPortConnection, updatePortConnection, deletePortConnection } from '@/api/port-connection'
+import { getPortConnections, getPortConnection, getPortConnectionByAssetId, getReverseLinks, createPortConnection, updatePortConnection, deletePortConnection } from '@/api/port-connection'
 import { getAssets } from '@/api/asset'
+import { generatePorts, summarizePortGroups } from '@/utils/portNaming'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -350,6 +560,66 @@ const ports = ref([])
 const logicalInterfaces = ref([])
 const editForm = reactive({ remark: '' })
 
+// Physical port table pagination (selectable 10 / 20 / 50 / 100)
+const portPageSize = ref(10)
+const portCurrentPage = ref(1)
+// Search keyword for filtering physical ports by source interface name (edit drawer only)
+const portSearchKeyword = ref('')
+// Sorted (UP first) + searched ports for the edit drawer physical port table
+const filteredPorts = computed(() => {
+  const statusWeight = (s) => (s === 'up' ? 0 : 1)
+  const sorted = [...ports.value].sort((a, b) => {
+    const d = statusWeight(a.status) - statusWeight(b.status)
+    if (d !== 0) return d
+    return (a.index || 0) - (b.index || 0)
+  })
+  const kw = (portSearchKeyword.value || '').trim().toLowerCase()
+  if (!kw) return sorted
+  return sorted.filter((p) => (p.name || '').toLowerCase().includes(kw))
+})
+const pagedPorts = computed(() => {
+  const start = (portCurrentPage.value - 1) * portPageSize.value
+  return filteredPorts.value.slice(start, start + portPageSize.value)
+})
+
+// Map physical port name -> owning ETH-TRUNK object (read-only binding display + inherited net config)
+const portTrunkMap = computed(() => {
+  const map = {}
+  logicalInterfaces.value.forEach((li) => {
+    if (li.type === 'eth-trunk' && Array.isArray(li.member_ports)) {
+      li.member_ports.forEach((pn) => { map[pn] = li })
+    }
+  })
+  return map
+})
+function boundTrunk(row) {
+  return portTrunkMap.value[row.name] || null
+}
+
+// Detail-drawer equivalent (uses detailData's logical interfaces)
+const detailPortTrunkMap = computed(() => {
+  const map = {}
+  ;(detailData.value?.logical_interfaces || []).forEach((li) => {
+    if (li.type === 'eth-trunk' && Array.isArray(li.member_ports)) {
+      li.member_ports.forEach((pn) => { map[pn] = li })
+    }
+  })
+  return map
+})
+function detailBoundTrunk(row) {
+  return detailPortTrunkMap.value[row.name] || null
+}
+const NET_TYPE_LABEL = { access: 'Access', trunk: 'Trunk', hybrid: 'Hybrid' }
+
+// Detail drawer physical port pagination (default 10)
+const detailPortPageSize = ref(10)
+const detailPortCurrentPage = ref(1)
+const detailPagedPorts = computed(() => {
+  const all = detailData.value?.ports_data || []
+  const start = (detailPortCurrentPage.value - 1) * detailPortPageSize.value
+  return all.slice(start, start + detailPortPageSize.value)
+})
+
 // Asset options for dropdown
 const assetOptions = ref([])
 
@@ -366,35 +636,100 @@ async function loadAssets() {
   }
 }
 
-function onAssetChange(assetId) {
+async function onAssetChange(assetId) {
   const asset = assetOptions.value.find(a => a.id === assetId)
-  if (asset) {
-    const pc = asset.extra_data?.port_count || 24
-    portCount.value = pc
-    regeneratePorts()
+  ports.value = []
+  portSearchKeyword.value = ''
+  if (!asset) return
+  const portGroups = asset.extra_data?.port_groups || []
+  const stackConfig = asset.extra_data?.stack_config || null
+  const generated = generatePorts(portGroups, stackConfig)
+  ports.value = generated.map((p, i) => ({
+    index: i + 1,
+    name: p.name,
+    port_type: p.typeLabel,
+    medium: p.medium,
+    speed: p.speed,
+    member: p.member,
+    net_type: p.net_type || 'access',
+    vlan_id: p.vlan_id || '',
+    vlan_range: p.vlan_range || '',
+    connected_device_id: null,
+    connected_device: '',
+    connected_interface: '',
+    remote_net_type: 'access',
+    remote_vlan_id: '',
+    remote_vlan_range: '',
+    status: 'disconnected',
+    remark: '',
+  }))
+  // Fallback for devices without typed port config (non-switch / legacy)
+  if (ports.value.length === 0) {
+    const fb = Number(asset.extra_data?.port_count) || 8
+    ports.value = Array.from({ length: fb }, (_, i) => ({
+      index: i + 1,
+      name: `端口${i + 1}`,
+      port_type: '',
+      medium: '',
+      speed: '',
+      member: null,
+      net_type: 'access',
+      vlan_id: '',
+      vlan_range: '',
+      connected_device_id: null,
+      connected_device: '',
+      connected_interface: '',
+      remote_net_type: 'access',
+      remote_vlan_id: '',
+      remote_vlan_range: '',
+      status: 'disconnected',
+      remark: '',
+    }))
+  }
+  portCount.value = ports.value.length
+  portCurrentPage.value = 1
+
+  // Auto-associate reverse interconnections: for each local port that has no manual
+  // peer yet, look up whether another device already links TO this (device, port)
+  // and prefill the peer device / interface / type / net / vlan accordingly.
+  await autoFillReverseLinks()
+}
+
+/** Fetch reverse links for all current local ports and prefill peer info. */
+async function autoFillReverseLinks() {
+  const localPorts = ports.value.filter(p => !p.connected_device_id)
+  if (localPorts.length === 0) return
+  const names = localPorts.map(p => p.name)
+  try {
+    const links = await getReverseLinks(selectedAssetId.value, names)
+    ports.value.forEach((p) => {
+      const link = links && links[p.name]
+      if (link && !p.connected_device_id) {
+        p.connected_device_id = link.source_asset_id
+        p.connected_device = link.source_asset_name
+        p.connected_interface = link.source_port_name
+        p.remote_net_type = link.source_net_type || 'access'
+        p.remote_vlan_id = link.source_vlan_id || ''
+        p.remote_vlan_range = link.source_vlan_range || ''
+      }
+    })
+  } catch {
+    // reverse-link lookup is best-effort; ignore failures
   }
 }
 
-function regeneratePorts() {
-  const oldPorts = [...ports.value]
-  const newPorts = []
-  for (let i = 0; i < portCount.value; i++) {
-    if (oldPorts[i]) {
-      newPorts.push(oldPorts[i])
-    } else {
-      newPorts.push({
-        index: i + 1,
-        name: `端口${i + 1}`,
-        connected_device_id: null,
-        connected_device: '',
-        connected_interface: '',
-        status: 'disconnected',
-        remark: '',
-      })
-    }
-  }
-  ports.value = newPorts
-}
+/** Summary of generated ports by type, e.g. '千兆电口×24，万兆光口×4'. */
+const portSummaryText = computed(() => {
+  if (ports.value.length === 0) return ''
+  const counts = {}
+  ports.value.forEach((p) => {
+    const key = p.port_type || '其他'
+    counts[key] = (counts[key] || 0) + 1
+  })
+  return Object.entries(counts)
+    .map(([k, v]) => `${k}×${v}`)
+    .join('，')
+})
 
 // ---- Remote device port loading ----
 
@@ -420,9 +755,11 @@ async function loadRemotePorts(deviceId) {
 
   try {
     const pcData = await getPortConnectionByAssetId(deviceId)
-    const portNames = (pcData.ports_data || [])
-      .map(p => p.name)
-      .filter(n => n && n.trim())
+    // Physical ports + logical interfaces (Vlanif / Eth-Trunk)
+    const portNames = [
+      ...(pcData.ports_data || []).map(p => p.name),
+      ...(pcData.logical_interfaces || []).filter(li => li.name).map(li => li.name),
+    ].filter(n => n && n.trim())
     remotePortsCache.value[deviceId] = portNames
   } catch {
     // 404 = no port config for this device yet
@@ -441,7 +778,9 @@ function addLogicalInterface() {
   logicalInterfaces.value.push({
     type: 'vlanif',
     name: '',
+    net_type: 'access',
     vlan_id: '',
+    vlan_range: '',
     ip_address: '',
     mask: '',
     member_ports: [],
@@ -454,14 +793,33 @@ function removeLogicalInterface(index) {
 }
 
 function onLogicalTypeChange(row) {
-  // Clear type-specific fields when switching type
+  // Clear type-specific fields when switching type, but preserve the relevant net config
   if (row.type === 'vlanif') {
     row.member_ports = []
+    row.net_type = 'access'
+    row.vlan_range = ''
   } else if (row.type === 'eth-trunk') {
     row.vlan_id = ''
     row.ip_address = ''
     row.mask = ''
+    if (!row.net_type) row.net_type = 'access'
   }
+}
+
+/** When an ETH-TRUNK's member ports change, copy the trunk's net config down to the
+ *  bound physical ports as their default. Ports remain individually editable afterwards. */
+function onTrunkMembersChange(li) {
+  const net = li.net_type || 'access'
+  const vid = net === 'access' ? (li.vlan_id || '') : ''
+  const vrange = net !== 'access' ? (li.vlan_range || '') : ''
+  ;(li.member_ports || []).forEach((pn) => {
+    const port = ports.value.find(p => p.name === pn)
+    if (port) {
+      port.net_type = net
+      port.vlan_id = vid
+      port.vlan_range = vrange
+    }
+  })
 }
 
 function hasVlanif(list) {
@@ -471,6 +829,38 @@ function hasVlanif(list) {
 function hasEthTrunk(list) {
   return list.some(item => item.type === 'eth-trunk')
 }
+
+// ---- Asset meta helpers (lookup device_type / brand / model from cached assets) ----
+const DEVICE_TYPE_COLOR = { switch: '#409eff', router: '#67c23a', firewall: '#f56c6c', security: '#e6a23c', other: '#909399' }
+const DEVICE_TYPE_EMOJI = { switch: '🔀', router: '📡', firewall: '🛡', security: '🔒', other: '📦' }
+const DEVICE_TYPE_LABEL_MAP = { switch: '交换机', router: '路由器', firewall: '防火墙', security: '安全设备', other: '其他' }
+
+function findAsset(assetId) {
+  return assetOptions.value.find((a) => a.id === assetId)
+}
+function getDeviceType(assetId) {
+  return findAsset(assetId)?.device_type || ''
+}
+function getBrand(assetId) {
+  return findAsset(assetId)?.brand || ''
+}
+function getModel(assetId) {
+  return findAsset(assetId)?.model || ''
+}
+function deviceTypeColor(val) {
+  return DEVICE_TYPE_COLOR[val] || '#909399'
+}
+function deviceTypeEmoji(val) {
+  return DEVICE_TYPE_EMOJI[val] || '📦'
+}
+function deviceTypeLabelFn(val) {
+  return DEVICE_TYPE_LABEL_MAP[val] || val || '未知'
+}
+
+// Detail-drawer hero meta (reactive — re-runs when assetOptions loads or detailData changes)
+const detailDeviceType = computed(() => findAsset(detailData.value?.asset_id)?.device_type || '')
+const detailBrand = computed(() => findAsset(detailData.value?.asset_id)?.brand || '')
+const detailModel = computed(() => findAsset(detailData.value?.asset_id)?.model || '')
 
 // ---- Helpers ----
 
@@ -524,8 +914,10 @@ function handleAdd() {
   selectedAssetId.value = null
   portCount.value = 0
   ports.value = []
+  portSearchKeyword.value = ''
   logicalInterfaces.value = []
   remotePortsCache.value = {}
+  portCurrentPage.value = 1
   editForm.remark = ''
   loadAssets()
   dialogVisible.value = true
@@ -536,17 +928,33 @@ async function handleEdit(row) {
   await loadAssets()
   selectedAssetId.value = row.asset_id
   portCount.value = row.port_count || 0
+  portSearchKeyword.value = ''
   ports.value = (row.ports_data || []).map((p, i) => ({
-    ...p,
     index: i + 1,
+    name: p.name || `端口${i + 1}`,
+    port_type: p.port_type || '',
+    medium: p.medium || '',
+    speed: p.speed || '',
+    member: p.member || null,
+    net_type: p.net_type || 'access',
+    vlan_id: p.vlan_id || '',
+    vlan_range: p.vlan_range || '',
     connected_device_id: p.connected_device_id || null,
     connected_device: p.connected_device || '',
     connected_interface: p.connected_interface || '',
+    remote_net_type: p.remote_net_type || 'access',
+    remote_vlan_id: p.remote_vlan_id || '',
+    remote_vlan_range: p.remote_vlan_range || '',
+    status: p.status || 'disconnected',
+    remark: p.remark || '',
   }))
+  portCurrentPage.value = 1
   logicalInterfaces.value = (row.logical_interfaces || []).map(li => ({
     type: li.type || 'vlanif',
     name: li.name || '',
+    net_type: li.net_type || 'access',
     vlan_id: li.vlan_id || '',
+    vlan_range: li.vlan_range || '',
     ip_address: li.ip_address || '',
     mask: li.mask || '',
     member_ports: li.member_ports || [],
@@ -559,6 +967,9 @@ async function handleEdit(row) {
   const deviceIds = [...new Set(ports.value.map(p => p.connected_device_id).filter(Boolean))]
   await Promise.all(deviceIds.map(id => loadRemotePorts(id)))
 
+  // Also auto-associate any port that has no manual peer yet (reverse-link prefill)
+  await autoFillReverseLinks()
+
   dialogVisible.value = true
 }
 
@@ -568,6 +979,7 @@ async function handleDetail(row) {
   } catch {
     detailData.value = row
   }
+  detailPortCurrentPage.value = 1
   detailVisible.value = true
 }
 
@@ -584,16 +996,28 @@ async function handleSubmit() {
     ports_data: ports.value.map((p, i) => ({
       index: i + 1,
       name: p.name || `端口${i + 1}`,
+      port_type: p.port_type || '',
+      medium: p.medium || '',
+      speed: p.speed || '',
+      member: p.member || null,
+      net_type: p.net_type || 'access',
+      vlan_id: p.vlan_id || '',
+      vlan_range: p.vlan_range || '',
       connected_device_id: p.connected_device_id || null,
       connected_device: p.connected_device || '',
       connected_interface: p.connected_interface || '',
+      remote_net_type: p.remote_net_type || 'access',
+      remote_vlan_id: p.remote_vlan_id || '',
+      remote_vlan_range: p.remote_vlan_range || '',
       status: p.status || 'disconnected',
       remark: p.remark || '',
     })),
     logical_interfaces: logicalInterfaces.value.map(li => ({
       type: li.type || 'vlanif',
       name: li.name || '',
-      vlan_id: li.type === 'vlanif' ? (li.vlan_id || '') : '',
+      net_type: li.type === 'eth-trunk' ? (li.net_type || 'access') : (li.net_type || 'access'),
+      vlan_id: li.vlan_id || '',
+      vlan_range: li.type === 'eth-trunk' ? (li.vlan_range || '') : '',
       ip_address: li.type === 'vlanif' ? (li.ip_address || '') : '',
       mask: li.type === 'vlanif' ? (li.mask || '') : '',
       member_ports: li.type === 'eth-trunk' ? (li.member_ports || []) : [],
@@ -628,6 +1052,7 @@ async function handleDelete(row) {
 
 onMounted(() => {
   fetchData()
+  loadAssets()
 })
 </script>
 
@@ -640,10 +1065,49 @@ onMounted(() => {
 .text-muted { color: var(--el-text-color-secondary); font-size: 13px; }
 .port-count-tag { margin-left: 12px; }
 .hint-text { margin-left: 12px; font-size: 12px; color: var(--el-text-color-secondary); }
+.sc-hint-mini { font-size: 11px; color: var(--el-color-success); line-height: 1.3; margin-top: 2px; }
 .detail-body { padding: 0 4px; display: flex; flex-direction: column; gap: 20px; }
+.detail-body > div { min-width: 0; width: 100%; max-width: 100%; }
 .section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+
+/* ===== Device Name Icon (table column) ===== */
+.device-name-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.device-name-cell > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-emoji { font-size: 16px; }
+
+/* ===== Detail Drawer Hero (icon + name + type/brand) ===== */
+.detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--el-bg-color-page);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.detail-hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.detail-hero-emoji { font-size: 28px; }
+.detail-hero-info { flex: 1; min-width: 0; }
+.detail-hero-name {
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-hero-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.detail-hero-brand { font-size: 13px; color: var(--el-text-color-secondary); }
 .port-section { margin-top: 20px; }
 .port-section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+.port-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; gap: 12px; flex-wrap: wrap; }
+.port-pager-total { font-size: 13px; color: var(--el-text-color-secondary); }
 :deep(.el-table__row) { cursor: pointer; }
 
 /* ===== Prevent table cell content from wrapping (use horizontal scroll for overflow) ===== */
@@ -656,6 +1120,9 @@ onMounted(() => {
   white-space: nowrap;
 }
 :deep(.el-table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   overflow-x: auto;
 }
 </style>

@@ -93,6 +93,44 @@ class GenericCRUDService:
             if asset:
                 data["dest_device_name"] = asset.device_name
 
+    def get_reverse_links(self, db, device_id, port_names):
+        """For each port name in `port_names` of `device_id`, find a port on ANOTHER
+        asset whose ports_data references (device_id, port_name) as its remote peer.
+        Returns { port_name: {source asset + source port config} }.
+
+        Used to auto-populate the reverse interconnection when opening the peer
+        device's port-connection editor (e.g. A links to B.GE1 -> B.GE1 auto-links A).
+        """
+        from app.models.asset import Asset
+
+        if not port_names:
+            return {}
+        nameset = {str(n).strip() for n in port_names}
+        links = {}
+        # Only meaningful for models that carry a ports_data JSON column.
+        if not hasattr(self.model, "ports_data"):
+            return links
+        conns = db.query(self.model).all()
+        for conn in conns:
+            ports = getattr(conn, "ports_data", None) or []
+            for p in ports:
+                if not isinstance(p, dict):
+                    continue
+                cid = p.get("connected_device_id")
+                cif = (p.get("connected_interface") or "").strip()
+                if str(cid) == str(device_id) and cif in nameset and cif not in links:
+                    asset = db.query(Asset).filter(Asset.id == conn.asset_id).first()
+                    links[cif] = {
+                        "source_asset_id": conn.asset_id,
+                        "source_asset_name": asset.device_name if asset else "",
+                        "source_port_name": p.get("name") or "",
+                        "source_port_type": p.get("port_type") or "",
+                        "source_net_type": p.get("net_type") or "",
+                        "source_vlan_id": p.get("vlan_id") or "",
+                        "source_vlan_range": p.get("vlan_range") or "",
+                    }
+        return links
+
 
 # Service instances for each module
 port_connection_service = GenericCRUDService(

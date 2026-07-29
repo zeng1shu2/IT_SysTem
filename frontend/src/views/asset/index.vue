@@ -252,6 +252,16 @@
           <div class="detail-section-title"><el-icon><ChatLineSquare /></el-icon> 备注</div>
           <div class="detail-remark-box">{{ detailData.remark }}</div>
         </div>
+        <div v-if="detailData.extra_data?.stack_config?.enabled && (detailData.extra_data?.stack_config?.members || []).length" class="detail-remark-section">
+          <div class="detail-section-title"><el-icon><Connection /></el-icon> 堆叠成员 ({{ detailData.extra_data.stack_config.members.length }} 台)</div>
+          <el-table :data="detailData.extra_data.stack_config.members" border size="small">
+            <el-table-column type="index" label="#" width="50" />
+            <el-table-column prop="name" label="设备名称" min-width="150" />
+            <el-table-column prop="serial_number" label="序列号" min-width="150" />
+            <el-table-column prop="it_asset_code" label="IT资产编码" min-width="140" />
+            <el-table-column prop="financial_asset_code" label="财务资产编码" min-width="140" />
+          </el-table>
+        </div>
         <div class="detail-actions">
           <el-button v-if="userStore.isAdmin" type="primary" @click="handleEditFromDetail">
             <el-icon><Edit /></el-icon> 编辑此设备
@@ -367,13 +377,14 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search, Plus, View, Close, Calendar, Timer, InfoFilled,
-  Edit, ChatLineSquare, Setting, Loading, Operation,
+  Edit, ChatLineSquare, Setting, Loading, Operation, Connection,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getAssets, getAsset, createAsset, updateAsset, deleteAsset } from '@/api/asset'
 import { getFormConfigByCode } from '@/api/form_config'
 import { defaultAssetFormSchema, coreAssetFields } from '@/api/assetFormSchema'
 import SchemaFormRenderer from '@/components/SchemaFormRenderer.vue'
+import { summarizePortGroups } from '@/utils/portNaming'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -640,6 +651,12 @@ function formatFieldValue(row, field) {
   if (val === undefined || val === null) {
     val = row.extra_data?.[field.prop]
   }
+  // Custom structured fields: port groups / stacking config
+  if (field.prop === 'port_groups') return summarizePortGroups(val)
+  if (field.prop === 'stack_config') {
+    if (!val || !val.enabled) return '未开启堆叠'
+    return `堆叠: 开启 (${Number(val.count) || 0} 台)`
+  }
   if (val === undefined || val === null || val === '') return '—'
   if (field.type === 'select' && field.options) {
     if (Array.isArray(val)) {
@@ -769,6 +786,8 @@ async function handleSubmit() {
     const fieldDefaults = { device_type: 'other', status: 'in_use' }
     formSchema.value.forEach((field) => {
       if (['divider', 'alert', 'text'].includes(field.type)) return
+      // Skip conditional fields that are currently hidden (e.g. port/stack config on non-switch)
+      if (field.visibleWhen && !isFieldVisibleForRow(field, formData)) return
       const val = formData[field.prop]
       if (coreAssetFields.includes(field.prop)) {
         if (val !== undefined && val !== '' && val !== null) {

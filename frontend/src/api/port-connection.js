@@ -12,6 +12,12 @@ export function getPortConnectionByAssetId(assetId) {
   return request.get(`/port-connections/by-asset/${assetId}`, { skipErrorHandler: true })
 }
 
+export function getReverseLinks(deviceId, portNames) {
+  return request.get('/port-connections/reverse-links', {
+    params: { device_id: deviceId, port_names: (portNames || []).join(',') },
+  })
+}
+
 export function createPortConnection(data) {
   return request.post('/port-connections', data)
 }

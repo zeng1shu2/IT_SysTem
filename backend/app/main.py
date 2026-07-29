@@ -97,7 +97,8 @@ async def lifespan(app: FastAPI):
             {"type": "input", "label": "管理IP", "prop": "ip_address", "span": 12, "placeholder": "如：192.168.1.1"},
             {"type": "input", "label": "MAC地址", "prop": "mac_address", "span": 12, "placeholder": "如：00:1A:2B:3C:4D:5E"},
             {"type": "divider", "label": "设备特性（动态）", "span": 24},
-            {"type": "number", "label": "端口数", "prop": "port_count", "span": 12, "defaultValue": 24, "min": 1, "max": 9999, "visibleWhen": {"prop": "device_type", "equals": "switch"}},
+            {"type": "portGroups", "label": "端口配置（按类型）", "prop": "port_groups", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "switch"}},
+            {"type": "stackConfig", "label": "堆叠配置", "prop": "stack_config", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "switch"}},
             {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200", "visibleWhen": {"prop": "device_type", "equals": "switch"}},
             {"type": "select", "label": "路由协议", "prop": "protocol", "span": 12, "defaultValue": [], "options": [
                 {"label": "OSPF", "value": "ospf"}, {"label": "BGP", "value": "bgp"},

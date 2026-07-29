@@ -96,6 +96,22 @@ def _build_router(service, create_schema, update_schema, response_schema, list_r
     return sub
 
 
+# 反向互联链路批量查询（须在 port-connections 子路由注册之前定义，
+# 否则会被子路由的 /{item_id} 命中）。
+@router.get("/port-connections/reverse-links", summary="批量查询反向互联链路")
+def get_reverse_links(
+    device_id: int = Query(..., description="本端设备ID"),
+    port_names: str = Query("", description="逗号分隔的本端端口名列表"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """给定本端设备及其端口名列表，返回每个端口在其它设备上被谁互联的信息
+    （对方设备、接口、接口类型、网络类型、VLAN），用于打开对端设备时自动回填互联关系。
+    例如 A 的 GE1 互联到 B 的 GE1，则打开 B 时 B 的 GE1 会自动关联回 A。"""
+    names = [n.strip() for n in (port_names or "").split(",") if n.strip()]
+    return port_connection_service.get_reverse_links(db, device_id, names)
+
+
 # Register sub-routers
 router.include_router(
     _build_router(port_connection_service, PortConnectionCreate, PortConnectionUpdate,

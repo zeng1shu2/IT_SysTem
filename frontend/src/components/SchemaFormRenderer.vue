@@ -225,6 +225,18 @@
               @click="showTagInput(field.prop)"
             >+ 添加标签</el-button>
           </div>
+          <!-- Port Groups (custom: switch port config by type) -->
+          <port-groups-editor
+            v-else-if="field.type === 'portGroups'"
+            v-model="formData[field.prop]"
+          />
+          <!-- Stack Config (custom: switch stacking members) -->
+          <stack-config-editor
+            v-else-if="field.type === 'stackConfig'"
+            ref="stackEditorRef"
+            v-model="formData[field.prop]"
+            :form-data="formData"
+          />
           <!-- Fallback -->
           <el-input v-else v-model="formData[field.prop]" :placeholder="field.placeholder" />
         </el-form-item>
@@ -235,6 +247,8 @@
 
 <script setup>
 import { ref, reactive, watch, computed, nextTick } from 'vue'
+import PortGroupsEditor from './PortGroupsEditor.vue'
+import StackConfigEditor from './StackConfigEditor.vue'
 
 const props = defineProps({
   fields: { type: Array, default: () => [] },
@@ -244,6 +258,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const formRef = ref()
+const stackEditorRef = ref()
 const formData = reactive({ ...props.modelValue })
 
 // Flag to prevent watch sync loops (parent ↔ child)
@@ -303,6 +318,10 @@ function initDefaults() {
         formData[f.prop] = f.min || 0
       } else if (f.type === 'color') {
         formData[f.prop] = ''
+      } else if (f.type === 'portGroups') {
+        formData[f.prop] = []
+      } else if (f.type === 'stackConfig') {
+        formData[f.prop] = { enabled: false, count: 0, members: [] }
       } else {
         formData[f.prop] = ''
       }
@@ -391,9 +410,18 @@ function handleUploadRemove(prop, file) {
   if (idx > -1) formData[prop].splice(idx, 1)
 }
 
-// Expose validate method (forward all arguments to support both callback and promise styles)
+// Expose validate method: runs el-form validation, then the custom stack-config
+// uniqueness check. Rejects (throws) when duplicates exist so the parent blocks save.
+async function doValidate(...args) {
+  await formRef.value?.validate(...args)
+  const stackOk = await stackEditorRef.value?.validate?.()
+  if (stackOk === false) {
+    throw new Error('堆叠成员存在重复编码')
+  }
+}
+
 defineExpose({
-  validate: (...args) => formRef.value?.validate(...args),
+  validate: doValidate,
   resetFields: () => formRef.value?.resetFields(),
   getFormData: () => ({ ...formData }),
 })

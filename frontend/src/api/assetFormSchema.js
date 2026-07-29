@@ -38,10 +38,13 @@ export const defaultAssetFormSchema = [
   // ===== Dynamic Fields (conditional on device_type) =====
   { type: 'divider', label: '设备特性（动态）', span: 24 },
 
-  // Switch: port count + VLAN range
+  // Switch: typed port groups + stacking + VLAN range
   {
-    type: 'number', label: '端口数', prop: 'port_count', span: 12,
-    defaultValue: 24, min: 1, max: 9999,
+    type: 'portGroups', label: '端口配置（按类型）', prop: 'port_groups', span: 24,
+    visibleWhen: { prop: 'device_type', equals: 'switch' },
+  },
+  {
+    type: 'stackConfig', label: '堆叠配置', prop: 'stack_config', span: 24,
     visibleWhen: { prop: 'device_type', equals: 'switch' },
   },
   {
