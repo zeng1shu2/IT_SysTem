@@ -7,9 +7,14 @@
           <el-input v-model="searchForm.keyword" placeholder="设备名称/IP/序列号" clearable @keyup.enter="handleSearch" />
         </el-form-item>
         <el-form-item label="设备类型">
-          <el-select v-model="searchForm.device_type" placeholder="全部" clearable style="width: 140px">
-            <el-option v-for="item in deviceTypes" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
+          <el-cascader
+            v-model="searchForm.device_type"
+            :options="deviceTypes"
+            placeholder="全部"
+            clearable
+            style="width: 200px"
+            :props="{ expandTrigger: 'hover', emitPath: false, value: 'value', label: 'label', children: 'options' }"
+          />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="全部" clearable style="width: 140px">
@@ -75,10 +80,12 @@
           stripe
           highlight-current-row
           style="width: 100%"
+          :default-sort="{ prop: 'id', order: 'descending' }"
+          @sort-change="handleSortChange"
           @row-click="handleRowClick"
           @row-dblclick="handleDetail"
         >
-          <el-table-column v-if="isColumnVisible('id')" prop="id" label="ID" width="60" />
+          <el-table-column v-if="isColumnVisible('id')" prop="id" label="ID" width="70" sortable="custom" />
           <el-table-column v-if="isColumnVisible('device_name')" prop="device_name" label="设备名称" min-width="120">
             <template #default="{ row }">
               <div class="device-name-cell">
@@ -385,6 +392,7 @@ import { getFormConfigByCode } from '@/api/form_config'
 import { defaultAssetFormSchema, coreAssetFields } from '@/api/assetFormSchema'
 import SchemaFormRenderer from '@/components/SchemaFormRenderer.vue'
 import { summarizePortGroups } from '@/utils/portNaming'
+import { DEVICE_CATEGORY_TREE, DEVICE_TYPE_LABEL_MAP, getDeviceTypeIcon, deviceTypeLabel as deviceTypeLabelFn } from '@/constants/vendors'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -407,13 +415,7 @@ const detailData = ref(null)
 // ===== Quick preview state =====
 const selectedRow = ref(null)
 
-const deviceTypes = [
-  { label: '交换机', value: 'switch' },
-  { label: '路由器', value: 'router' },
-  { label: '防火墙', value: 'firewall' },
-  { label: '安全设备', value: 'security' },
-  { label: '其他设备', value: 'other' },
-]
+const deviceTypes = DEVICE_CATEGORY_TREE
 
 const statusOptions = [
   { label: '使用中', value: 'in_use' },
@@ -425,6 +427,9 @@ const statusOptions = [
 
 const searchForm = reactive({ keyword: '', device_type: '', status: '' })
 const pagination = reactive({ page: 1, size: 20, total: 0 })
+
+// ID 排序：desc(倒序，默认) / asc(正序)
+const sortState = ref('desc')
 
 // ===== Form data (driven by schema) =====
 const formData = reactive({})
@@ -612,7 +617,7 @@ const completenessColor = computed(() => {
 
 // ==================== Helpers ====================
 function deviceTypeLabel(val) {
-  return deviceTypes.find((t) => t.value === val)?.label || val
+  return deviceTypeLabelFn(val)
 }
 function statusLabel(val) {
   return statusOptions.find((s) => s.value === val)?.label || val
@@ -622,12 +627,11 @@ function statusTagType(val) {
   return map[val] || ''
 }
 function deviceTypeColor(val) {
-  const map = { switch: '#409eff', router: '#67c23a', firewall: '#f56c6c', security: '#e6a23c', other: '#909399' }
-  return map[val] || '#909399'
+  // 用图标 emoji 的占位色块即可；这里统一用中性灰底 + emoji 展示
+  return '#909399'
 }
 function deviceTypeEmoji(val) {
-  const map = { switch: '🔀', router: '📡', firewall: '🛡', security: '🔒', other: '📦' }
-  return map[val] || '📦'
+  return getDeviceTypeIcon(val).emoji || '📦'
 }
 function formatDateTime(val) {
   if (!val) return '—'
@@ -681,7 +685,7 @@ function formatPreviewValue(field) {
 
 // ==================== Go to Form Designer ====================
 function goToDesigner() {
-  router.push('/designer')
+  router.push('/system/designer')
 }
 
 // ==================== Data Fetching ====================
@@ -694,12 +698,20 @@ async function fetchData() {
       keyword: searchForm.keyword || undefined,
       device_type: searchForm.device_type || undefined,
       status: searchForm.status || undefined,
+      order: sortState.value,
     })
     tableData.value = data.items
     pagination.total = data.total
   } finally {
     loading.value = false
   }
+}
+
+// ID 列排序切换：默认倒序，点击切换 asc/desc
+function handleSortChange({ prop, order }) {
+  if (prop !== 'id') return
+  sortState.value = sortState.value === 'desc' ? 'asc' : 'desc'
+  fetchData()
 }
 
 function handleSearch() {

@@ -24,11 +24,12 @@ def list_assets(
     keyword: str | None = Query(None),
     device_type: str | None = Query(None, description="设备类型: switch/router/firewall/security/other"),
     status: str | None = Query(None, description="状态: in_use/idle/fault/maintenance/scrap"),
+    order: str = Query("desc", description="ID排序: desc(倒序) / asc(正序)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get paginated asset list with optional filters."""
-    assets, total = get_assets(db, skip=skip, limit=limit, keyword=keyword, device_type=device_type, status=status)
+    assets, total = get_assets(db, skip=skip, limit=limit, keyword=keyword, device_type=device_type, status=status, order=order)
     return AssetListResponse(total=total, items=[AssetResponse.model_validate(a) for a in assets])
 
 

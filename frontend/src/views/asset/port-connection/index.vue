@@ -226,6 +226,14 @@
     <el-drawer v-model="dialogVisible" :title="editingId ? '编辑端口互联' : '新增端口互联'" size="75%" :close-on-click-modal="false">
       <el-form label-width="100px">
         <el-form-item label="选择设备" required>
+          <el-cascader
+            v-model="filterDeviceType"
+            :options="DEVICE_CATEGORY_TREE"
+            placeholder="按设备类型过滤"
+            clearable
+            style="width: 220px; margin-right: 12px"
+            :props="{ expandTrigger: 'hover', emitPath: false, value: 'value', label: 'label', children: 'options' }"
+          />
           <el-select
             v-model="selectedAssetId"
             placeholder="选择资产统计中的设备"
@@ -234,9 +242,9 @@
             @change="onAssetChange"
           >
             <el-option
-              v-for="asset in assetOptions"
+              v-for="asset in filteredAssetOptions"
               :key="asset.id"
-              :label="`${asset.device_name} (${asset.device_type})`"
+              :label="`${asset.device_name}（${deviceTypeLabelFn(asset.device_type)}）`"
               :value="asset.id"
             />
           </el-select>
@@ -533,13 +541,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getPortConnections, getPortConnection, getPortConnectionByAssetId, getReverseLinks, createPortConnection, updatePortConnection, deletePortConnection } from '@/api/port-connection'
 import { getAssets } from '@/api/asset'
-import { generatePorts, summarizePortGroups } from '@/utils/portNaming'
+import { generatePorts, summarizePortGroups, resolveAssetPorts, generateEthPorts } from '@/utils/portNaming'
+import { DEVICE_TYPE_LABEL_MAP, getDeviceTypeIcon, DEVICE_CATEGORY_TREE } from '@/constants/vendors'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -559,6 +568,21 @@ const portCount = ref(0)
 const ports = ref([])
 const logicalInterfaces = ref([])
 const editForm = reactive({ remark: '' })
+
+// 设备类型过滤（先选类型再选设备，避免设备过多下拉过长）
+const filterDeviceType = ref('')
+const filteredAssetOptions = computed(() => {
+  if (!filterDeviceType.value) return assetOptions.value
+  return assetOptions.value.filter((a) => a.device_type === filterDeviceType.value)
+})
+// 当类型过滤变化时，若当前选中设备不在过滤结果内则清空
+watch(filterDeviceType, () => {
+  if (selectedAssetId.value && !filteredAssetOptions.value.some(a => a.id === selectedAssetId.value)) {
+    selectedAssetId.value = null
+    ports.value = []
+    portCount.value = 0
+  }
+})
 
 // Physical port table pagination (selectable 10 / 20 / 50 / 100)
 const portPageSize = ref(10)
@@ -641,10 +665,9 @@ async function onAssetChange(assetId) {
   ports.value = []
   portSearchKeyword.value = ''
   if (!asset) return
-  const portGroups = asset.extra_data?.port_groups || []
-  const stackConfig = asset.extra_data?.stack_config || null
-  const generated = generatePorts(portGroups, stackConfig)
-  ports.value = generated.map((p, i) => ({
+  // 统一解析物理端口：typed 端口 > ETH 接口 > 旧 port_count 兜底
+  const resolved = resolveAssetPorts(asset)
+  ports.value = resolved.map((p, i) => ({
     index: i + 1,
     name: p.name,
     port_type: p.typeLabel,
@@ -663,29 +686,6 @@ async function onAssetChange(assetId) {
     status: 'disconnected',
     remark: '',
   }))
-  // Fallback for devices without typed port config (non-switch / legacy)
-  if (ports.value.length === 0) {
-    const fb = Number(asset.extra_data?.port_count) || 8
-    ports.value = Array.from({ length: fb }, (_, i) => ({
-      index: i + 1,
-      name: `端口${i + 1}`,
-      port_type: '',
-      medium: '',
-      speed: '',
-      member: null,
-      net_type: 'access',
-      vlan_id: '',
-      vlan_range: '',
-      connected_device_id: null,
-      connected_device: '',
-      connected_interface: '',
-      remote_net_type: 'access',
-      remote_vlan_id: '',
-      remote_vlan_range: '',
-      status: 'disconnected',
-      remark: '',
-    }))
-  }
   portCount.value = ports.value.length
   portCurrentPage.value = 1
 
@@ -831,9 +831,7 @@ function hasEthTrunk(list) {
 }
 
 // ---- Asset meta helpers (lookup device_type / brand / model from cached assets) ----
-const DEVICE_TYPE_COLOR = { switch: '#409eff', router: '#67c23a', firewall: '#f56c6c', security: '#e6a23c', other: '#909399' }
-const DEVICE_TYPE_EMOJI = { switch: '🔀', router: '📡', firewall: '🛡', security: '🔒', other: '📦' }
-const DEVICE_TYPE_LABEL_MAP = { switch: '交换机', router: '路由器', firewall: '防火墙', security: '安全设备', other: '其他' }
+const DEVICE_TYPE_COLOR = { switch: '#409eff', router: '#67c23a', firewall: '#f56c6c', other: '#909399' }
 
 function findAsset(assetId) {
   return assetOptions.value.find((a) => a.id === assetId)
@@ -851,7 +849,7 @@ function deviceTypeColor(val) {
   return DEVICE_TYPE_COLOR[val] || '#909399'
 }
 function deviceTypeEmoji(val) {
-  return DEVICE_TYPE_EMOJI[val] || '📦'
+  return getDeviceTypeIcon(val).emoji || '📦'
 }
 function deviceTypeLabelFn(val) {
   return DEVICE_TYPE_LABEL_MAP[val] || val || '未知'

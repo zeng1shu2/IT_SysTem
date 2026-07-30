@@ -8,7 +8,7 @@
       </div>
       <el-menu
         :default-active="route.path"
-        :default-openeds="['/asset']"
+        :default-openeds="['/asset', '/ip', '/system']"
         :collapse="appStore.sidebarCollapsed"
         router
         background-color="#304156"
@@ -16,7 +16,13 @@
         active-text-color="#409EFF"
         class="sidebar-menu"
       >
-        <!-- Asset Management Sub-menu -->
+        <!-- 首页（图标化入口，无子级） -->
+        <el-menu-item index="/home">
+          <el-icon><HomeFilled /></el-icon>
+          <template #title>首页</template>
+        </el-menu-item>
+
+        <!-- 资产管理 -->
         <el-sub-menu index="/asset">
           <template #title>
             <el-icon><Monitor /></el-icon>
@@ -30,17 +36,9 @@
             <el-icon><Connection /></el-icon>
             <template #title>端口互联</template>
           </el-menu-item>
-          <el-menu-item index="/asset/ip-plan">
-            <el-icon><Grid /></el-icon>
-            <template #title>IP地址规划</template>
-          </el-menu-item>
-          <el-menu-item index="/asset/interconnect-ip">
-            <el-icon><Share /></el-icon>
-            <template #title>互联IP</template>
-          </el-menu-item>
           <el-menu-item index="/asset/external-broadband">
             <el-icon><Position /></el-icon>
-            <template #title>外线宽带</template>
+            <template #title>IPS带宽</template>
           </el-menu-item>
           <el-menu-item index="/asset/license">
             <el-icon><Key /></el-icon>
@@ -48,13 +46,55 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <!-- Flat menu items -->
-        <template v-for="item in flatMenuItems" :key="item.path">
-          <el-menu-item :index="item.path">
-            <el-icon><component :is="item.icon" /></el-icon>
-            <template #title>{{ item.title }}</template>
+        <!-- IP 管理 -->
+        <el-sub-menu index="/ip">
+          <template #title>
+            <el-icon><Share /></el-icon>
+            <span>IP管理</span>
+          </template>
+          <el-menu-item index="/ip/ip-plan">
+            <el-icon><Grid /></el-icon>
+            <template #title>IP地址规划</template>
           </el-menu-item>
-        </template>
+          <el-menu-item index="/ip/ip-allocation">
+            <el-icon><Tickets /></el-icon>
+            <template #title>IP地址分配表</template>
+          </el-menu-item>
+          <el-menu-item index="/ip/interconnect-ip">
+            <el-icon><Connection /></el-icon>
+            <template #title>互联IP</template>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <!-- 权限管理 -->
+        <el-menu-item index="/permission">
+          <el-icon><Lock /></el-icon>
+          <template #title>权限管理</template>
+        </el-menu-item>
+
+        <!-- 系统管理 -->
+        <el-sub-menu index="/system">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>系统管理</span>
+          </template>
+          <el-menu-item v-if="userStore.isAdmin" index="/system/user">
+            <el-icon><User /></el-icon>
+            <template #title>用户管理</template>
+          </el-menu-item>
+          <el-menu-item v-if="userStore.isAdmin" index="/system/role">
+            <el-icon><UserFilled /></el-icon>
+            <template #title>角色管理</template>
+          </el-menu-item>
+          <el-menu-item v-if="userStore.isAdmin" index="/system/audit">
+            <el-icon><Memo /></el-icon>
+            <template #title>审计管理</template>
+          </el-menu-item>
+          <el-menu-item v-if="userStore.isAdmin" index="/system/designer">
+            <el-icon><EditPen /></el-icon>
+            <template #title>表单设计</template>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
@@ -67,7 +107,7 @@
             <Expand v-else />
           </el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="route.path !== '/home'" :to="{ path: '/home' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-for="matched in route.matched.filter(m => m.meta?.title)" :key="matched.path" :to="matched.path !== route.path ? { path: matched.path } : undefined">
               {{ matched.meta.title }}
             </el-breadcrumb-item>
@@ -106,29 +146,15 @@ import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessageBox } from 'element-plus'
 import {
-  Monitor, DataAnalysis, Connection, Grid, Share, Position, Key,
-  Fold, Expand, UserFilled, SwitchButton,
+  Monitor, DataAnalysis, Connection, Position, Key, Share, Grid, Tickets,
+  Lock, Setting, User, UserFilled, Memo, EditPen, HomeFilled,
+  Fold, Expand, SwitchButton,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const appStore = useAppStore()
-
-const flatMenuItems = computed(() => {
-  const items = [
-    { path: '/permission', title: '权限管理', icon: 'Key' },
-  ]
-  if (userStore.isAdmin) {
-    items.push(
-      { path: '/user', title: '用户管理', icon: 'User' },
-      { path: '/role', title: '角色管理', icon: 'UserFilled' },
-      { path: '/audit', title: '审计日志', icon: 'Document' },
-      { path: '/designer', title: '表单设计', icon: 'EditPen' }
-    )
-  }
-  return items
-})
 
 async function handleCommand(command) {
   if (command === 'logout') {

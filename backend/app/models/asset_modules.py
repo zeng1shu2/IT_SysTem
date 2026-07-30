@@ -84,6 +84,7 @@ class ExternalBroadband(Base):
     vlan = Column(String(50), nullable=True, comment="对应VLAN")
     bandwidth = Column(String(50), nullable=True, comment="线路带宽")
     ownership = Column(String(100), nullable=True, comment="线路归属")
+    status = Column(String(20), nullable=True, comment="状态:正常/空闲/故障/停用")
     remark = Column(Text, nullable=True, comment="备注")
     extra_data = Column(JSON, nullable=True, comment="自定义扩展字段")
     created_at = Column(DateTime, default=datetime.now, nullable=False)
@@ -99,17 +100,71 @@ class LicenseManagement(Base):
     __tablename__ = "license_managements"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    vendor = Column(String(100), nullable=True, comment="厂商")
+    brand = Column(String(100), nullable=True, comment="品牌")
     device_type = Column(String(50), nullable=True, comment="设备类型")
     asset_id = Column(Integer, ForeignKey("assets.id"), nullable=True, comment="关联资产ID")
     device_name = Column(String(100), nullable=True, comment="设备名称(关联资产统计)")
     license_key = Column(String(500), nullable=True, comment="授权码/序列号")
     activation_date = Column(DateTime, nullable=True, comment="激活日期")
     expiration_date = Column(DateTime, nullable=True, comment="到期日期")
+    status = Column(String(20), nullable=True, comment="状态: 正常/临期2月/临期1月/临期15天/过期")
     remark = Column(Text, nullable=True, comment="备注")
     extra_data = Column(JSON, nullable=True, comment="自定义扩展字段")
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
     def __repr__(self):
-        return f"<LicenseManagement(id={self.id}, vendor={self.vendor})>"
+        return f"<LicenseManagement(id={self.id}, brand={self.brand})>"
+
+    @staticmethod
+    def compute_status(activation_date=None, expiration_date=None, now=None):
+        """根据激活与到期时间自动计算授权状态。
+
+        状态枚举：正常 / 临期2月 / 临期1月 / 临期15天 / 过期
+        - 无到期日期：正常
+        - 已过期（now > 到期）：过期
+        - 距到期 <= 15 天：临期15天
+        - 距到期 <= 30 天：临期1月
+        - 距到期 <= 60 天：临期2月
+        - 其余：正常
+        """
+        if expiration_date is None:
+            return "正常"
+        from datetime import datetime as _dt
+        if now is None:
+            now = _dt.now()
+        if isinstance(expiration_date, str):
+            expiration_date = _dt.fromisoformat(expiration_date)
+        if isinstance(now, str):
+            now = _dt.fromisoformat(now)
+        delta_days = (expiration_date - now).days
+        if delta_days < 0:
+            return "过期"
+        if delta_days <= 15:
+            return "临期15天"
+        if delta_days <= 30:
+            return "临期1月"
+        if delta_days <= 60:
+            return "临期2月"
+        return "正常"
+
+
+class IPAllocation(Base):
+    """IP address allocation table - assigned IP with owner/department/dates."""
+
+    __tablename__ = "ip_allocations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    department = Column(String(100), nullable=True, comment="部门")
+    user_name = Column(String(100), nullable=True, comment="使用人")
+    ip_address = Column(String(200), nullable=False, comment="IP地址/掩码")
+    apply_date = Column(DateTime, nullable=True, comment="申请日期")
+    recycle_date = Column(DateTime, nullable=True, comment="回收日期")
+    remark = Column(Text, nullable=True, comment="备注")
+    registrar = Column(String(100), nullable=True, comment="登记人")
+    extra_data = Column(JSON, nullable=True, comment="自定义扩展字段")
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<IPAllocation(id={self.id}, ip_address={self.ip_address})>"

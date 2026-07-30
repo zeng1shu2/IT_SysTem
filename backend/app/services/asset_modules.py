@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.asset_modules import (
     ExternalBroadband,
     InterconnectIP,
+    IPAllocation,
     IPPlan,
     LicenseManagement,
     PortConnection,
@@ -22,7 +23,7 @@ class GenericCRUDService:
         self.search_fields = search_fields or []
         self.target_type = target_type or model.__tablename__
 
-    def list(self, db, skip=0, limit=20, keyword=None, **filters):
+    def list(self, db, skip=0, limit=20, keyword=None, order="desc", **filters):
         query = db.query(self.model)
         if keyword and self.search_fields:
             query = query.filter(
@@ -33,7 +34,10 @@ class GenericCRUDService:
                 if hasattr(self.model, key):
                     query = query.filter(getattr(self.model, key) == val)
         total = query.count()
-        items = query.order_by(self.model.id.desc()).offset(skip).limit(limit).all()
+        order_col = self.model.id.desc() if order == "asc" else self.model.id.desc()
+        if order == "asc":
+            order_col = self.model.id.asc()
+        items = query.order_by(order_col).offset(skip).limit(limit).all()
         return items, total
 
     def get_by_id(self, db, item_id):
@@ -46,6 +50,12 @@ class GenericCRUDService:
         data = item_create.model_dump()
         # Resolve device names for FK fields
         self._resolve_names(db, data)
+        # Auto-compute license status from activation/expiration dates
+        if self.target_type == "license" and hasattr(self.model, "compute_status"):
+            data["status"] = self.model.compute_status(
+                activation_date=data.get("activation_date"),
+                expiration_date=data.get("expiration_date"),
+            )
         item = self.model(**data)
         db.add(item)
         db.commit()
@@ -59,6 +69,11 @@ class GenericCRUDService:
         old_values = {}
         update_data = item_update.model_dump(exclude_unset=True)
         self._resolve_names(db, update_data)
+        # Auto-compute license status when dates change
+        if self.target_type == "license" and hasattr(self.model, "compute_status"):
+            act = update_data.get("activation_date", old_values.get("activation_date"))
+            exp = update_data.get("expiration_date", old_values.get("expiration_date"))
+            update_data["status"] = self.model.compute_status(activation_date=act, expiration_date=exp)
         for field, value in update_data.items():
             old_values[field] = getattr(item, field)
             setattr(item, field, value)
@@ -153,12 +168,18 @@ interconnect_ip_service = GenericCRUDService(
 
 external_broadband_service = GenericCRUDService(
     ExternalBroadband,
-    search_fields=["operator", "line_type", "ip_address", "ownership"],
+    search_fields=["operator", "line_type", "ip_address", "ownership", "status"],
     target_type="external_broadband",
 )
 
 license_service = GenericCRUDService(
     LicenseManagement,
-    search_fields=["vendor", "device_name", "device_type"],
+    search_fields=["brand", "device_name", "device_type"],
     target_type="license",
+)
+
+ip_allocation_service = GenericCRUDService(
+    IPAllocation,
+    search_fields=["department", "user_name", "ip_address", "registrar"],
+    target_type="ip_allocation",
 )

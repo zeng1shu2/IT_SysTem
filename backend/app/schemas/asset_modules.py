@@ -139,6 +139,7 @@ class ExternalBroadbandBase(BaseModel):
     vlan: str | None = Field(None, max_length=50)
     bandwidth: str | None = Field(None, max_length=50)
     ownership: str | None = Field(None, max_length=100)
+    status: str | None = Field("正常", max_length=20, description="正常/空闲/故障/停用")
     remark: str | None = None
     extra_data: dict[str, Any] | None = None
 
@@ -157,6 +158,7 @@ class ExternalBroadbandUpdate(BaseModel):
     vlan: str | None = None
     bandwidth: str | None = None
     ownership: str | None = None
+    status: str | None = None
     remark: str | None = None
     extra_data: dict[str, Any] | None = None
 
@@ -177,13 +179,14 @@ class ExternalBroadbandListResponse(BaseModel):
 # ==================== License Management ====================
 
 class LicenseManagementBase(BaseModel):
-    vendor: str | None = Field(None, max_length=100)
+    brand: str | None = Field(None, max_length=100)
     device_type: str | None = Field(None, max_length=50)
     asset_id: int | None = None
     device_name: str | None = Field(None, max_length=100)
     license_key: str | None = Field(None, max_length=500)
     activation_date: datetime | None = None
     expiration_date: datetime | None = None
+    status: str | None = Field(None, max_length=20, description="正常/临期2月/临期1月/临期15天/过期")
     remark: str | None = None
     extra_data: dict[str, Any] | None = None
 
@@ -193,7 +196,7 @@ class LicenseManagementCreate(LicenseManagementBase):
 
 
 class LicenseManagementUpdate(BaseModel):
-    vendor: str | None = None
+    brand: str | None = None
     device_type: str | None = None
     asset_id: int | None = None
     device_name: str | None = None
@@ -215,3 +218,44 @@ class LicenseManagementResponse(LicenseManagementBase):
 class LicenseManagementListResponse(BaseModel):
     total: int
     items: list[LicenseManagementResponse]
+
+
+# ==================== IP Allocation ====================
+
+class IPAllocationBase(BaseModel):
+    department: str | None = Field(None, max_length=100)
+    user_name: str | None = Field(None, max_length=100)
+    ip_address: str = Field(..., min_length=1, max_length=200)
+    apply_date: datetime | None = None
+    recycle_date: datetime | None = None
+    remark: str | None = None
+    registrar: str | None = Field(None, max_length=100)
+    extra_data: dict[str, Any] | None = None
+
+
+class IPAllocationCreate(IPAllocationBase):
+    pass
+
+
+class IPAllocationUpdate(BaseModel):
+    department: str | None = None
+    user_name: str | None = None
+    ip_address: str | None = None
+    apply_date: datetime | None = None
+    recycle_date: datetime | None = None
+    remark: str | None = None
+    registrar: str | None = None
+    extra_data: dict[str, Any] | None = None
+
+
+class IPAllocationResponse(IPAllocationBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class IPAllocationListResponse(BaseModel):
+    total: int
+    items: list[IPAllocationResponse]

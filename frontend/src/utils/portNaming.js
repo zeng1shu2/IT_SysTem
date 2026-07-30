@@ -88,3 +88,66 @@ export function previewGroupRange(group) {
   if (count === 1) return `${def.prefix}0/0/1`
   return `${def.prefix}0/0/1 ~ ${def.prefix}0/0/${count}`
 }
+
+/**
+ * Build the default ETH interface list for "other / system" device types.
+ * Default only one ETH-0 interface (ge_elec). Adding more => ETH-1 ... ETH-N.
+ * @param {number} ethCount - number of ETH interfaces (default 1)
+ * @returns {Array} [{ name:'ETH-0', type:'eth', typeLabel:'ETH接口', ... }]
+ */
+export function generateEthPorts(ethCount = 1) {
+  const count = Math.max(1, Number(ethCount) || 1)
+  const ports = []
+  for (let i = 0; i < count; i++) {
+    ports.push({
+      name: `ETH-${i}`,
+      type: 'eth',
+      typeLabel: 'ETH接口',
+      medium: '',
+      speed: '',
+      prefix: 'ETH',
+      member: null,
+      index: i + 1,
+      net_type: 'access',
+      vlan_id: '',
+      vlan_range: '',
+    })
+  }
+  return ports
+}
+
+/**
+ * Resolve physical ports for any device based on its stored config.
+ * Priority:
+ *  1. typed port_groups (switch/router/firewall with portGroups) -> generatePorts
+ *  2. eth_count (other/system/default) -> generateEthPorts (ETH-0 ...)
+ *  3. legacy fallback: extra_data.port_count -> generic 端口N
+ * @returns {Array} flat physical port list
+ */
+export function resolveAssetPorts(asset) {
+  const extra = asset?.extra_data || {}
+  if (Array.isArray(extra.port_groups) && extra.port_groups.length > 0) {
+    const gen = generatePorts(extra.port_groups, extra.stack_config || null)
+    if (gen.length > 0) return gen
+  }
+  if (extra.eth_count && Number(extra.eth_count) >= 1) {
+    return generateEthPorts(extra.eth_count)
+  }
+  const fb = Number(extra.port_count) || 0
+  if (fb > 0) {
+    return Array.from({ length: fb }, (_, i) => ({
+      name: `端口${i + 1}`,
+      type: '',
+      typeLabel: '',
+      medium: '',
+      speed: '',
+      prefix: '',
+      member: null,
+      index: i + 1,
+      net_type: 'access',
+      vlan_id: '',
+      vlan_range: '',
+    }))
+  }
+  return []
+}

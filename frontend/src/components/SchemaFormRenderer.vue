@@ -72,6 +72,9 @@
             style="width: 100%"
             :clearable="true"
             :filterable="true"
+            :multiple="!!field.multiple"
+            :collapse-tags="!!field.multiple"
+            :collapse-tags-tooltip="!!field.multiple"
           >
             <el-option
               v-for="opt in field.options"
@@ -79,6 +82,81 @@
               :label="opt.label"
               :value="opt.value"
             />
+          </el-select>
+          <!-- Select with cascade (two-level: category → device type) -->
+          <el-cascader
+            v-else-if="field.type === 'select-cascade'"
+            v-model="formData[field.prop]"
+            :options="field.cascaderOptions || []"
+            :placeholder="field.placeholder || '请选择设备类型'"
+            style="width: 100%"
+            :clearable="true"
+            :props="{ expandTrigger: 'hover', emitPath: false, value: 'value', label: 'label', children: 'options' }"
+          />
+          <!-- Select with remote options (e.g. link to asset table) -->
+          <el-select
+            v-else-if="field.type === 'select-remote'"
+            v-model="formData[field.prop]"
+            :placeholder="field.placeholder"
+            style="width: 100%"
+            :clearable="true"
+            :filterable="true"
+            :loading="remoteLoading[field.prop]"
+            @visible-change="(open) => open && loadRemoteOptions(field)"
+          >
+            <el-option
+              v-for="opt in (remoteOptions[field.prop] || field.options || [])"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+          <!-- Select with remote options, filtered by another form field (e.g. device_type)
+               Used by license: pick device_type first, then the device list is filtered. -->
+          <el-select
+            v-else-if="field.type === 'select-remote-filtered'"
+            v-model="formData[field.prop]"
+            :placeholder="field.placeholder"
+            style="width: 100%"
+            :clearable="true"
+            :filterable="true"
+            :loading="remoteLoading[field.prop]"
+            @visible-change="(open) => open && loadRemoteOptions(field)"
+          >
+            <el-option
+              v-for="opt in (filteredRemoteOptions(field) || [])"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+          <!-- Select with icon (operator / brand) -->
+          <el-select
+            v-else-if="field.type === 'select-icon'"
+            v-model="formData[field.prop]"
+            :placeholder="field.placeholder"
+            style="width: 100%"
+            :clearable="true"
+            :filterable="true"
+          >
+            <template v-if="selectedIcon(field)" #prefix>
+              <img :src="selectedIcon(field)" class="opt-icon" alt="" />
+            </template>
+            <template v-else-if="selectedEmoji(field)" #prefix>
+              <span class="opt-emoji">{{ selectedEmoji(field) }}</span>
+            </template>
+            <el-option
+              v-for="opt in field.options"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            >
+              <span class="opt-item">
+                <img v-if="opt.icon" :src="opt.icon" class="opt-icon" alt="" />
+                <span v-else-if="opt.emoji" class="opt-emoji">{{ opt.emoji }}</span>
+                <span>{{ opt.label }}</span>
+              </span>
+            </el-option>
           </el-select>
           <!-- Radio -->
           <el-radio-group
@@ -249,6 +327,7 @@
 import { ref, reactive, watch, computed, nextTick } from 'vue'
 import PortGroupsEditor from './PortGroupsEditor.vue'
 import StackConfigEditor from './StackConfigEditor.vue'
+import request from '@/api/request'
 
 const props = defineProps({
   fields: { type: Array, default: () => [] },
@@ -261,6 +340,52 @@ const formRef = ref()
 const stackEditorRef = ref()
 const formData = reactive({ ...props.modelValue })
 
+// ===== Remote options (for select-remote fields) =====
+const remoteLoading = reactive({})
+const remoteOptions = reactive({})
+
+async function loadRemoteOptions(field) {
+  if (!field.remoteUrl) return
+  if (remoteOptions[field.prop] && remoteOptions[field.prop].length) return
+  remoteLoading[field.prop] = true
+  try {
+    const res = await request.get(field.remoteUrl)
+    let list = []
+    if (Array.isArray(res)) list = res
+    else if (res.items) list = res.items
+    else if (res.data) list = res.data
+    else if (res.data?.items) list = res.data.items
+    const labelKey = field.remoteLabelKey || 'label'
+    const valueKey = field.remoteValueKey || 'value'
+    // 额外透传 device_type 等字段，供 select-remote-filtered 客户端过滤使用
+    const extraKeys = field.filterExtraKeys || ['device_type']
+    remoteOptions[field.prop] = list.map((item) => {
+      const opt = {
+        label: item[labelKey],
+        value: item[valueKey],
+      }
+      extraKeys.forEach((k) => { opt[k] = item[k] })
+      return opt
+    })
+  } catch {
+    remoteOptions[field.prop] = []
+  } finally {
+    remoteLoading[field.prop] = false
+  }
+}
+
+/**
+ * Remote options filtered by another form field (e.g. license's device_name filtered by device_type).
+ * Loads the full remote list once, then filters client-side by field.filterProp value.
+ */
+function filteredRemoteOptions(field) {
+  const all = remoteOptions[field.prop] || []
+  const filterVal = field.filterProp ? formData[field.filterProp] : null
+  if (!filterVal) return all
+  // remote list items carry their own device_type when loaded from /assets
+  return all.filter((opt) => opt.device_type === undefined || opt.device_type === filterVal)
+}
+
 // Flag to prevent watch sync loops (parent ↔ child)
 let syncing = false
 
@@ -270,6 +395,17 @@ const tagInputValue = reactive({})
 
 function isLayoutField(type) {
   return ['divider', 'alert', 'text'].includes(type)
+}
+
+// Resolve the icon/emoji for the currently selected option (for the select prefix)
+function selectedOption(field) {
+  return (field.options || []).find((o) => o.value === formData[field.prop])
+}
+function selectedIcon(field) {
+  return selectedOption(field)?.icon || ''
+}
+function selectedEmoji(field) {
+  return selectedOption(field)?.emoji || ''
 }
 
 // ==================== Conditional Visibility ====================
@@ -301,6 +437,9 @@ function initDefaults() {
           formData[f.prop] = Number(f.defaultValue)
         } else if (f.type === 'switch') {
           formData[f.prop] = f.defaultValue === true || f.defaultValue === 'true'
+        } else if (f.type === 'select' && f.multiple) {
+          // multi-select default: keep array form
+          formData[f.prop] = Array.isArray(f.defaultValue) ? [...f.defaultValue] : []
         } else {
           formData[f.prop] = f.defaultValue
         }
@@ -439,5 +578,21 @@ defineExpose({
   color: var(--el-text-color-regular);
   line-height: 1.6;
   padding: 4px 0;
+}
+.opt-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.opt-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.opt-emoji {
+  font-size: 18px;
+  line-height: 1;
 }
 </style>

@@ -45,6 +45,7 @@ def get_assets(
     keyword: str | None = None,
     device_type: str | None = None,
     status: str | None = None,
+    order: str = "desc",
 ) -> tuple[list[Asset], int]:
     """Get paginated asset list with optional filters."""
     query = db.query(Asset)
@@ -63,7 +64,8 @@ def get_assets(
         query = query.filter(Asset.status == status)
 
     total = query.count()
-    assets = query.order_by(Asset.id.desc()).offset(skip).limit(limit).all()
+    order_col = Asset.id.asc() if order == "asc" else Asset.id.desc()
+    assets = query.order_by(order_col).offset(skip).limit(limit).all()
     return assets, total
 
 

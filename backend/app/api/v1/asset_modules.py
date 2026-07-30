@@ -14,6 +14,10 @@ from app.schemas.asset_modules import (
     InterconnectIPListResponse,
     InterconnectIPResponse,
     InterconnectIPUpdate,
+    IPAllocationCreate,
+    IPAllocationListResponse,
+    IPAllocationResponse,
+    IPAllocationUpdate,
     IPPlanCreate,
     IPPlanListResponse,
     IPPlanResponse,
@@ -30,6 +34,7 @@ from app.schemas.asset_modules import (
 from app.services.asset_modules import (
     external_broadband_service,
     interconnect_ip_service,
+    ip_allocation_service,
     ip_plan_service,
     license_service,
     port_connection_service,
@@ -47,10 +52,11 @@ def _build_router(service, create_schema, update_schema, response_schema, list_r
         skip: int = Query(0, ge=0),
         limit: int = Query(20, ge=1, le=1000),
         keyword: str | None = Query(None),
+        order: str = Query("desc", description="ID排序: desc(倒序) / asc(正序)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ):
-        items, total = service.list(db, skip=skip, limit=limit, keyword=keyword)
+        items, total = service.list(db, skip=skip, limit=limit, keyword=keyword, order=order)
         return list_response_schema(total=total, items=[response_schema.model_validate(i) for i in items])
 
     @sub.get("/{item_id}", response_model=response_schema, summary=f"获取{tag}详情")
@@ -145,11 +151,17 @@ router.include_router(
 )
 router.include_router(
     _build_router(external_broadband_service, ExternalBroadbandCreate, ExternalBroadbandUpdate,
-                  ExternalBroadbandResponse, ExternalBroadbandListResponse, "external-broadbands", "外线宽带"),
-    prefix="/external-broadbands", tags=["外线宽带"],
+                  ExternalBroadbandResponse, ExternalBroadbandListResponse, "external-broadbands", "IPS带宽"),
+    prefix="/external-broadbands", tags=["IPS带宽"],
 )
 router.include_router(
     _build_router(license_service, LicenseManagementCreate, LicenseManagementUpdate,
                   LicenseManagementResponse, LicenseManagementListResponse, "licenses", "授权管理"),
     prefix="/licenses", tags=["授权管理"],
+)
+
+router.include_router(
+    _build_router(ip_allocation_service, IPAllocationCreate, IPAllocationUpdate,
+                  IPAllocationResponse, IPAllocationListResponse, "ip-allocations", "IP地址分配表"),
+    prefix="/ip-allocations", tags=["IP地址分配表"],
 )

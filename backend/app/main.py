@@ -79,16 +79,35 @@ async def lifespan(app: FastAPI):
             db.commit()
             return True  # created
 
-        # --- Asset form (updated with it_asset_code, financial_asset_code) ---
+        # --- Asset form (设备类型两级联动 + 全类型端口配置 + 安全域/路由协议多选) ---
         _seed_form_config(db, "asset_form", "资产统计表单", "资产统计页面的动态表单配置", [
             {"type": "divider", "label": "基础信息", "span": 24},
             {"type": "input", "label": "设备名称", "prop": "device_name", "required": True, "span": 12, "placeholder": "如：核心交换机-01"},
-            {"type": "select", "label": "设备类型", "prop": "device_type", "required": True, "span": 12, "defaultValue": "switch", "options": [
-                {"label": "交换机", "value": "switch"}, {"label": "路由器", "value": "router"},
-                {"label": "防火墙", "value": "firewall"}, {"label": "安全设备", "value": "security"},
-                {"label": "其他设备", "value": "other"},
+            {"type": "select-cascade", "label": "设备类型", "prop": "device_type", "required": True, "span": 12, "defaultValue": "switch", "cascaderOptions": [
+                {"label": "网络设备类", "options": [
+                    {"label": "交换机", "value": "switch"}, {"label": "路由器", "value": "router"},
+                    {"label": "集线器", "value": "hub"}, {"label": "其他设备", "value": "other"},
+                ]},
+                {"label": "安全设备类", "options": [
+                    {"label": "防火墙", "value": "firewall"}, {"label": "上网行为管理", "value": "internet_behavior"},
+                    {"label": "堡垒机", "value": "bastion"}, {"label": "IPS", "value": "ips"},
+                    {"label": "IDS", "value": "ids"}, {"label": "DDoS", "value": "ddos"},
+                    {"label": "VPN", "value": "vpn"}, {"label": "杀毒软件", "value": "antivirus"},
+                ]},
+                {"label": "其他软件类", "options": [
+                    {"label": "准入系统", "value": "admission"}, {"label": "认证系统", "value": "auth"},
+                    {"label": "网管系统", "value": "nms"}, {"label": "数据库系统", "value": "database"},
+                    {"label": "运维审计系统", "value": "ops_audit"}, {"label": "API网关系统", "value": "api_gateway"},
+                ]},
             ]},
-            {"type": "input", "label": "品牌", "prop": "brand", "span": 12, "placeholder": "如：华为"},
+            # 品牌：与授权管理 license_form.brand 保持一致（select-icon 单选：华为/深信服/绿盟/H3C/信锐）
+            {"type": "select-icon", "label": "品牌", "prop": "brand", "span": 12, "options": [
+                {"label": "华为", "value": "华为", "icon": "/brand-icons/huawei.png"},
+                {"label": "深信服", "value": "深信服", "icon": "/brand-icons/sangfor.png"},
+                {"label": "绿盟", "value": "绿盟", "icon": "/brand-icons/nsfocus.png"},
+                {"label": "H3C", "value": "H3C", "icon": "/brand-icons/h3c.png"},
+                {"label": "信锐", "value": "信锐", "emoji": "📡"},
+            ]},
             {"type": "input", "label": "型号", "prop": "model", "span": 12, "placeholder": "如：S5700-28C-HI"},
             {"type": "divider", "label": "资产编码", "span": 24},
             {"type": "input", "label": "IT资产编码", "prop": "it_asset_code", "span": 12, "placeholder": "如：IT-2024-0001"},
@@ -97,25 +116,39 @@ async def lifespan(app: FastAPI):
             {"type": "input", "label": "管理IP", "prop": "ip_address", "span": 12, "placeholder": "如：192.168.1.1"},
             {"type": "input", "label": "MAC地址", "prop": "mac_address", "span": 12, "placeholder": "如：00:1A:2B:3C:4D:5E"},
             {"type": "divider", "label": "设备特性（动态）", "span": 24},
-            {"type": "portGroups", "label": "端口配置（按类型）", "prop": "port_groups", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "switch"}},
-            {"type": "stackConfig", "label": "堆叠配置", "prop": "stack_config", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "switch"}},
-            {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200", "visibleWhen": {"prop": "device_type", "equals": "switch"}},
-            {"type": "select", "label": "路由协议", "prop": "protocol", "span": 12, "defaultValue": [], "options": [
+            # 网络设备类（交换机/路由器/集线器）：与交换机一致增加端口配置 + 堆叠 + 管理VLAN
+            {"type": "portGroups", "label": "端口配置（按类型）", "prop": "port_groups", "span": 24, "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub"]}},
+            {"type": "stackConfig", "label": "堆叠配置", "prop": "stack_config", "span": 24, "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub"]}},
+            {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200", "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub"]}},
+            # 防火墙：与交换机一致增加端口配置 + 堆叠 + 管理VLAN
+            {"type": "portGroups", "label": "端口配置（按类型）", "prop": "port_groups", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
+            {"type": "stackConfig", "label": "堆叠配置", "prop": "stack_config", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
+            {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200", "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
+            # 路由器：路由协议改为可多选
+            {"type": "select", "label": "路由协议", "prop": "protocol", "span": 12, "defaultValue": [], "multiple": True, "options": [
                 {"label": "OSPF", "value": "ospf"}, {"label": "BGP", "value": "bgp"},
                 {"label": "RIP", "value": "rip"}, {"label": "静态路由", "value": "static"},
+                {"label": "ISIS", "value": "isis"},
             ], "visibleWhen": {"prop": "device_type", "equals": "router"}},
             {"type": "number", "label": "WAN口数", "prop": "wan_count", "span": 12, "min": 0, "max": 16, "visibleWhen": {"prop": "device_type", "equals": "router"}},
-            {"type": "select", "label": "安全域", "prop": "security_zone", "span": 12, "options": [
+            # 防火墙：安全域改为可多选
+            {"type": "select", "label": "安全域", "prop": "security_zones", "span": 12, "multiple": True, "options": [
                 {"label": "Trust（信任）", "value": "trust"}, {"label": "Untrust（不信任）", "value": "untrust"},
                 {"label": "DMZ（隔离区）", "value": "dmz"}, {"label": "自定义", "value": "custom"},
             ], "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
             {"type": "number", "label": "策略数", "prop": "policy_count", "span": 12, "defaultValue": 0, "min": 0, "max": 9999, "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
+            # 其他设备/系统类：默认仅 ETH-0 接口（eth_count）
+            {"type": "input", "label": "ETH接口数", "prop": "eth_count", "span": 12, "defaultValue": 1, "min": 1, "max": 64,
+             "placeholder": "默认 1（即 ETH-0），新增则为 ETH-1…",
+             "visibleWhen": {"prop": "device_type", "in": ["other", "hub", "internet_behavior", "bastion", "ips", "ids", "ddos", "vpn", "antivirus", "admission", "auth", "nms", "database", "ops_audit", "api_gateway"]}},
+            # 安全设备类（非防火墙）子类型 + 防护级别
             {"type": "select", "label": "安全子类", "prop": "sub_type", "span": 12, "options": [
                 {"label": "IDS（入侵检测）", "value": "ids"}, {"label": "IPS（入侵防御）", "value": "ips"},
                 {"label": "WAF（Web应用防火墙）", "value": "waf"}, {"label": "上网行为管理", "value": "behavior"},
-            ], "visibleWhen": {"prop": "device_type", "equals": "security"}},
-            {"type": "rate", "label": "防护级别", "prop": "protection_level", "span": 12, "defaultValue": 3, "max": 5, "visibleWhen": {"prop": "device_type", "equals": "security"}},
-            {"type": "textarea", "label": "设备描述", "prop": "description", "span": 24, "rows": 2, "placeholder": "请描述设备用途...", "visibleWhen": {"prop": "device_type", "equals": "other"}},
+            ], "visibleWhen": {"prop": "device_type", "in": ["internet_behavior", "bastion", "ips", "ids", "ddos", "vpn", "antivirus"]}},
+            {"type": "rate", "label": "防护级别", "prop": "protection_level", "span": 12, "defaultValue": 3, "max": 5, "visibleWhen": {"prop": "device_type", "in": ["internet_behavior", "bastion", "ips", "ids", "ddos", "vpn", "antivirus"]}},
+            # 其他设备描述
+            {"type": "textarea", "label": "设备描述", "prop": "description", "span": 24, "rows": 2, "placeholder": "请描述设备用途...", "visibleWhen": {"prop": "device_type", "in": ["other", "hub"]}},
             {"type": "divider", "label": "位置与状态", "span": 24},
             {"type": "input", "label": "序列号", "prop": "serial_number", "span": 12, "placeholder": "设备序列号"},
             {"type": "select", "label": "状态", "prop": "status", "required": True, "span": 12, "defaultValue": "in_use", "options": [
@@ -157,15 +190,22 @@ async def lifespan(app: FastAPI):
         ])
 
         # --- External Broadband form ---
-        _seed_form_config(db, "external_broadband_form", "外线宽带表单", "外线宽带页面的动态表单配置", [
+        _seed_form_config(db, "external_broadband_form", "IPS带宽表单", "IPS带宽页面的动态表单配置", [
             {"type": "divider", "label": "线路信息", "span": 24},
-            {"type": "select", "label": "运营商", "prop": "operator", "span": 12, "options": [
-                {"label": "中国电信", "value": "电信"}, {"label": "中国联通", "value": "联通"},
-                {"label": "中国移动", "value": "移动"}, {"label": "其他", "value": "其他"},
+            {"type": "select-icon", "label": "运营商", "prop": "operator", "span": 12, "options": [
+                {"label": "中国电信", "value": "电信", "icon": "/brand-icons/telecom.png"},
+                {"label": "中国联通", "value": "联通", "icon": "/brand-icons/unicom.png"},
+                {"label": "中国移动", "value": "移动", "icon": "/brand-icons/mobile.png"},
+                {"label": "中国广电", "value": "广电", "icon": "/brand-icons/broadcast.png"},
+                {"label": "其他", "value": "其他", "emoji": "🌐"},
             ]},
             {"type": "select", "label": "线路类型", "prop": "line_type", "span": 12, "options": [
                 {"label": "专线", "value": "专线"}, {"label": "宽带", "value": "宽带"},
                 {"label": "光纤", "value": "光纤"}, {"label": "其他", "value": "其他"},
+            ]},
+            {"type": "select", "label": "状态", "prop": "status", "span": 12, "defaultValue": "正常", "options": [
+                {"label": "正常", "value": "正常"}, {"label": "空闲", "value": "空闲"},
+                {"label": "故障", "value": "故障"}, {"label": "停用", "value": "停用"},
             ]},
             {"type": "input", "label": "IP", "prop": "ip_address", "span": 12, "placeholder": "如：202.96.128.86"},
             {"type": "input", "label": "掩码", "prop": "mask", "span": 12, "placeholder": "如：255.255.255.252"},
@@ -180,12 +220,54 @@ async def lifespan(app: FastAPI):
         # --- License Management form ---
         _seed_form_config(db, "license_form", "授权管理表单", "授权管理页面的动态表单配置", [
             {"type": "divider", "label": "授权信息", "span": 24},
-            {"type": "input", "label": "厂商", "prop": "vendor", "span": 12, "placeholder": "如：华为"},
-            {"type": "input", "label": "设备类型", "prop": "device_type", "span": 12, "placeholder": "如：防火墙"},
-            {"type": "input", "label": "设备名称", "prop": "device_name", "span": 12, "placeholder": "关联资产统计中的设备"},
+            {"type": "select-icon", "label": "品牌", "prop": "brand", "span": 12, "options": [
+                {"label": "华为", "value": "华为", "icon": "/brand-icons/huawei.png"},
+                {"label": "深信服", "value": "深信服", "icon": "/brand-icons/sangfor.png"},
+                {"label": "绿盟", "value": "绿盟", "icon": "/brand-icons/nsfocus.png"},
+                {"label": "H3C", "value": "H3C", "icon": "/brand-icons/h3c.png"},
+                {"label": "信锐", "value": "信锐", "emoji": "📡"},
+            ]},
+            {"type": "select-cascade", "label": "设备类型", "prop": "device_type", "span": 12, "cascaderOptions": [
+                {"label": "网络设备类", "options": [
+                    {"label": "交换机", "value": "switch"}, {"label": "路由器", "value": "router"},
+                    {"label": "集线器", "value": "hub"}, {"label": "其他设备", "value": "other"},
+                ]},
+                {"label": "安全设备类", "options": [
+                    {"label": "防火墙", "value": "firewall"}, {"label": "上网行为管理", "value": "internet_behavior"},
+                    {"label": "堡垒机", "value": "bastion"}, {"label": "IPS", "value": "ips"},
+                    {"label": "IDS", "value": "ids"}, {"label": "DDoS", "value": "ddos"},
+                    {"label": "VPN", "value": "vpn"}, {"label": "杀毒软件", "value": "antivirus"},
+                ]},
+                {"label": "其他软件类", "options": [
+                    {"label": "准入系统", "value": "admission"}, {"label": "认证系统", "value": "auth"},
+                    {"label": "网管系统", "value": "nms"}, {"label": "数据库系统", "value": "database"},
+                    {"label": "运维审计系统", "value": "ops_audit"}, {"label": "API网关系统", "value": "api_gateway"},
+                ]},
+            ]},
+            {"type": "select-remote-filtered", "label": "设备名称", "prop": "device_name", "span": 12,
+             "placeholder": "先选上方设备类型，再选设备", "remoteUrl": "/assets",
+             "remoteLabelKey": "device_name", "remoteValueKey": "device_name",
+             "filterProp": "device_type", "filterExtraKeys": ["device_type"]},
             {"type": "input", "label": "授权码", "prop": "license_key", "span": 12, "placeholder": "授权码/序列号"},
             {"type": "date", "label": "激活日期", "prop": "activation_date", "span": 12},
             {"type": "date", "label": "到期日期", "prop": "expiration_date", "span": 12},
+            {"type": "select", "label": "状态", "prop": "status", "span": 12, "disabled": True, "options": [
+                {"label": "正常", "value": "正常"}, {"label": "临期2月", "value": "临期2月"},
+                {"label": "临期1月", "value": "临期1月"}, {"label": "临期15天", "value": "临期15天"},
+                {"label": "过期", "value": "过期"},
+            ]},
+            {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
+        ])
+
+        # --- IP Allocation form (IP地址分配表) ---
+        _seed_form_config(db, "ip_allocation_form", "IP地址分配表表单", "IP地址分配表页面的动态表单配置", [
+            {"type": "divider", "label": "基本信息", "span": 24},
+            {"type": "input", "label": "部门", "prop": "department", "span": 12, "placeholder": "如：运维部"},
+            {"type": "input", "label": "使用人", "prop": "user_name", "span": 12, "placeholder": "如：张三"},
+            {"type": "input", "label": "IP地址/掩码", "prop": "ip_address", "required": True, "span": 12, "placeholder": "如：192.168.1.10/24"},
+            {"type": "input", "label": "登记人", "prop": "registrar", "span": 12, "placeholder": "如：李四"},
+            {"type": "date", "label": "申请日期", "prop": "apply_date", "span": 12},
+            {"type": "date", "label": "回收日期", "prop": "recycle_date", "span": 12},
             {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
         ])
 

@@ -56,10 +56,12 @@
           stripe
           highlight-current-row
           style="width: 100%"
+          :default-sort="{ prop: 'id', order: 'descending' }"
+          @sort-change="handleSortChange"
           @row-click="handleRowClick"
           @row-dblclick="handleDetail"
         >
-          <el-table-column v-if="isColumnVisible('id')" prop="id" label="ID" width="60" />
+          <el-table-column v-if="isColumnVisible('id')" prop="id" label="ID" width="70" sortable="custom" />
           <!-- Core columns from props -->
           <el-table-column
             v-for="col in visibleCoreColumns"
@@ -71,8 +73,20 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span v-if="col.type === 'tag'">
-                <el-tag :type="getTagType(col, row)" size="small">{{ getTagLabel(col, row) }}</el-tag>
+              <span v-if="col.type === 'tag'" class="cell-tag-wrap">
+                <el-tag
+                  v-if="getTagColor(col, row)"
+                  :color="getTagColor(col, row)"
+                  size="small"
+                  effect="dark"
+                  style="border: none; color: #fff"
+                >{{ getTagLabel(col, row) }}</el-tag>
+                <el-tag v-else :type="getTagType(col, row)" size="small">{{ getTagLabel(col, row) }}</el-tag>
+              </span>
+              <span v-else-if="col.type === 'icon'" class="cell-icon-wrap">
+                <img v-if="getIconSrc(col, row)" :src="getIconSrc(col, row)" class="cell-icon" alt="" />
+                <span v-else-if="getEmoji(col, row)" class="cell-emoji">{{ getEmoji(col, row) }}</span>
+                <span>{{ getTagLabel(col, row) }}</span>
               </span>
               <span v-else-if="col.type === 'date'">{{ formatDate(getCellValue(row, col.prop)) }}</span>
               <span v-else-if="col.type === 'datetime'">{{ formatDateTime(getCellValue(row, col.prop)) }}</span>
@@ -228,6 +242,9 @@ const selectedRow = ref(null)
 const pagination = reactive({ page: 1, size: 20, total: 0 })
 const formData = reactive({})
 
+// ID 排序状态：desc(倒序，默认) / asc(正序)
+const sortState = ref('desc')
+
 function onFormUpdate(val) {
   Object.keys(val).forEach((key) => { formData[key] = val[key] })
 }
@@ -344,6 +361,27 @@ function getTagType(col, row) {
   return ''
 }
 
+// Custom hex color for a tag column (value → color), if provided
+function getTagColor(col, row) {
+  const val = getCellValue(row, col.prop)
+  if (col.colorMap && val != null && val !== '') return col.colorMap[val] || ''
+  return ''
+}
+
+// Icon (image url) for an icon column
+function getIconSrc(col, row) {
+  const val = getCellValue(row, col.prop)
+  if (col.iconMap && val != null && val !== '') return col.iconMap[val] || ''
+  return ''
+}
+
+// Emoji fallback for an icon column
+function getEmoji(col, row) {
+  const val = getCellValue(row, col.prop)
+  if (col.emojiMap && val != null && val !== '') return col.emojiMap[val] || ''
+  return ''
+}
+
 function getTagLabel(col, row) {
   const val = getCellValue(row, col.prop)
   if (col.options) {
@@ -359,13 +397,19 @@ function formatFieldValue(row, field) {
     val = row.extra_data?.[field.prop]
   }
   if (val === undefined || val === null || val === '') return '—'
-  if (field.type === 'select' && field.options) {
+  if ((field.type === 'select' || field.type === 'select-icon') && field.options) {
+    const opt = field.options.find(o => o.value === val)
+    const label = opt ? opt.label : val
+    // 详情/预览中对 select-icon 显示图标 + 名称
+    if (field.type === 'select-icon') {
+      const icon = opt?.icon ? `<img src="${opt.icon}" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px;border-radius:3px;object-fit:contain" alt=""/>` : (opt?.emoji ? `<span style="margin-right:4px">${opt.emoji}</span>` : '')
+      return icon + label
+    }
     if (Array.isArray(val)) {
       if (val.length === 0) return '—'
       return val.map(v => field.options.find(o => o.value === v)?.label || v).join(', ')
     }
-    const opt = field.options.find(o => o.value === val)
-    return opt ? opt.label : val
+    return label
   }
   if (field.type === 'date') return formatDate(val)
   if (field.type === 'datetime') return formatDateTime(val)
@@ -397,12 +441,21 @@ async function fetchData() {
       skip: (pagination.page - 1) * pagination.size,
       limit: pagination.size,
       keyword: searchKeyword.value || undefined,
+      order: sortState.value,
     })
     tableData.value = data.items
     pagination.total = data.total
   } finally {
     loading.value = false
   }
+}
+
+// 点击 ID 列头切换排序：column 为 null（其它列）忽略；id 列在 desc/asc 间循环
+function handleSortChange({ prop, order }) {
+  if (prop !== 'id') return
+  // order: 'ascending' | 'descending' | null；循环：desc→asc→desc
+  sortState.value = sortState.value === 'desc' ? 'asc' : 'desc'
+  fetchData()
 }
 
 function handleSearch() {
@@ -562,5 +615,23 @@ onMounted(() => {
 }
 :deep(.el-table) {
   overflow-x: auto;
+}
+
+/* ===== Icon column + colored tag ===== */
+.cell-icon-wrap, .cell-tag-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cell-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.cell-emoji {
+  font-size: 16px;
+  line-height: 1;
 }
 </style>

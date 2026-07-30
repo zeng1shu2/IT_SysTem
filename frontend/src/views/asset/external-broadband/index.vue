@@ -6,8 +6,8 @@
     :core-fields="coreFields"
     :columns="columns"
     :default-visible-columns="defaultVisibleColumns"
-    title="外线宽带"
-    entity-name="外线宽带"
+    title="IPS带宽"
+    entity-name="IPS带宽"
     name-field="operator"
     search-placeholder="运营商/线路类型/IP/归属"
     storage-key="external_broadband_columns"
@@ -27,19 +27,37 @@ const api = {
 }
 
 const coreFields = [
-  'operator', 'line_type', 'ip_address', 'mask', 'gateway',
+  'operator', 'line_type', 'status', 'ip_address', 'mask', 'gateway',
   'dial_account', 'vlan', 'bandwidth', 'ownership', 'remark',
 ]
+
+// 运营商图标映射（与表单种子一致）
+const operatorIconMap = {
+  电信: '/brand-icons/telecom.png',
+  联通: '/brand-icons/unicom.png',
+  移动: '/brand-icons/mobile.png',
+  广电: '/brand-icons/broadcast.png',
+}
+const operatorEmojiMap = { 其他: '🌐' }
+
+// 状态颜色映射
+const statusColorMap = {
+  正常: '#67C23A',
+  空闲: '#409EFF',
+  故障: '#E6A23C',
+  停用: '#F56C6C',
+}
 
 const defaultSchema = [
   { type: 'divider', label: '线路信息', span: 24 },
   {
-    type: 'select', label: '运营商', prop: 'operator', span: 12,
+    type: 'select-icon', label: '运营商', prop: 'operator', span: 12,
     options: [
-      { label: '中国电信', value: '电信' },
-      { label: '中国联通', value: '联通' },
-      { label: '中国移动', value: '移动' },
-      { label: '其他', value: '其他' },
+      { label: '中国电信', value: '电信', icon: '/brand-icons/telecom.png' },
+      { label: '中国联通', value: '联通', icon: '/brand-icons/unicom.png' },
+      { label: '中国移动', value: '移动', icon: '/brand-icons/mobile.png' },
+      { label: '中国广电', value: '广电', icon: '/brand-icons/broadcast.png' },
+      { label: '其他', value: '其他', emoji: '🌐' },
     ],
   },
   {
@@ -49,6 +67,15 @@ const defaultSchema = [
       { label: '宽带', value: '宽带' },
       { label: '光纤', value: '光纤' },
       { label: '其他', value: '其他' },
+    ],
+  },
+  {
+    type: 'select', label: '状态', prop: 'status', span: 12, defaultValue: '正常',
+    options: [
+      { label: '正常', value: '正常' },
+      { label: '空闲', value: '空闲' },
+      { label: '故障', value: '故障' },
+      { label: '停用', value: '停用' },
     ],
   },
   { type: 'input', label: 'IP', prop: 'ip_address', span: 12, placeholder: '如：202.96.128.86' },
@@ -62,8 +89,9 @@ const defaultSchema = [
 ]
 
 const columns = [
-  { prop: 'operator', label: '运营商', width: 100 },
+  { prop: 'operator', label: '运营商', width: 130, type: 'icon', iconMap: operatorIconMap, emojiMap: operatorEmojiMap },
   { prop: 'line_type', label: '线路类型', width: 100 },
+  { prop: 'status', label: '状态', width: 90, type: 'tag', colorMap: statusColorMap },
   { prop: 'ip_address', label: 'IP', width: 140 },
   { prop: 'mask', label: '掩码', width: 140 },
   { prop: 'gateway', label: '网关', width: 140 },
@@ -73,5 +101,5 @@ const columns = [
   { prop: 'ownership', label: '线路归属', minWidth: 120 },
 ]
 
-const defaultVisibleColumns = ['id', 'operator', 'line_type', 'ip_address', 'vlan', 'bandwidth', 'ownership']
+const defaultVisibleColumns = ['id', 'operator', 'line_type', 'status', 'ip_address', 'vlan', 'bandwidth', 'ownership']
 </script>
