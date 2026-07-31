@@ -145,7 +145,11 @@
             <div class="qp-info-grid">
               <div class="qp-info-item" v-for="field in previewFields" :key="field.prop">
                 <span class="qp-label">{{ field.label }}</span>
-                <span class="qp-value">{{ formatFieldValue(selectedRow, field) }}</span>
+                <span class="qp-value">
+                  <img v-if="getSelectIcon(field, selectedRow)" :src="getSelectIcon(field, selectedRow)" class="cell-icon" alt="" />
+                  <span v-else-if="getSelectEmoji(field, selectedRow)" class="cell-emoji">{{ getSelectEmoji(field, selectedRow) }}</span>
+                  {{ formatFieldValue(selectedRow, field) }}
+                </span>
               </div>
             </div>
             <div class="qp-actions">
@@ -166,7 +170,11 @@
             v-for="field in detailFields"
             :key="field.prop"
             :label="field.label"
-          >{{ formatFieldValue(detailData, field) }}</el-descriptions-item>
+          >
+            <img v-if="getSelectIcon(field, detailData)" :src="getSelectIcon(field, detailData)" class="cell-icon" alt="" />
+            <span v-else-if="getSelectEmoji(field, detailData)" class="cell-emoji">{{ getSelectEmoji(field, detailData) }}</span>
+            {{ formatFieldValue(detailData, field) }}
+          </el-descriptions-item>
         </el-descriptions>
         <div class="detail-actions">
           <el-button v-if="userStore.isAdmin" type="primary" @click="handleEditFromDetail">编辑</el-button>
@@ -204,6 +212,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, View, Close, Operation, Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getFormConfigByCode } from '@/api/form_config'
+import { resolveSystemFieldOptions } from '@/api/system-field'
 import SchemaFormRenderer from '@/components/SchemaFormRenderer.vue'
 
 const props = defineProps({
@@ -259,7 +268,7 @@ async function loadFormSchema() {
         ? JSON.parse(config.form_schema)
         : config.form_schema
       if (Array.isArray(parsed) && parsed.length > 0) {
-        formSchema.value = parsed
+        formSchema.value = await resolveSystemFieldOptions(parsed)
       }
     }
   } catch {
@@ -382,6 +391,23 @@ function getEmoji(col, row) {
   return ''
 }
 
+// select-icon 在预览/详情面板中的图标 src（与表格列 type='icon' 不同：从 formSchema.field.options 取）
+function getSelectIcon(field, row) {
+  if (!row || field.type !== 'select-icon' || !field.options) return ''
+  const val = row[field.prop]
+  if (val == null || val === '') return ''
+  const opt = field.options.find((o) => o.value === val)
+  return opt?.icon || ''
+}
+
+function getSelectEmoji(field, row) {
+  if (!row || field.type !== 'select-icon' || !field.options) return ''
+  const val = row[field.prop]
+  if (val == null || val === '') return ''
+  const opt = field.options.find((o) => o.value === val)
+  return opt?.emoji || ''
+}
+
 function getTagLabel(col, row) {
   const val = getCellValue(row, col.prop)
   if (col.options) {
@@ -400,10 +426,9 @@ function formatFieldValue(row, field) {
   if ((field.type === 'select' || field.type === 'select-icon') && field.options) {
     const opt = field.options.find(o => o.value === val)
     const label = opt ? opt.label : val
-    // 详情/预览中对 select-icon 显示图标 + 名称
+    // select-icon 的图标/emoji 由调用方在 template 里渲染（避免在文本插值中拼 HTML 字符串）
     if (field.type === 'select-icon') {
-      const icon = opt?.icon ? `<img src="${opt.icon}" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px;border-radius:3px;object-fit:contain" alt=""/>` : (opt?.emoji ? `<span style="margin-right:4px">${opt.emoji}</span>` : '')
-      return icon + label
+      return label
     }
     if (Array.isArray(val)) {
       if (val.length === 0) return '—'

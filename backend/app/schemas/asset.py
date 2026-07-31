@@ -17,6 +17,8 @@ class AssetBase(BaseModel):
     ip_address: str | None = Field(None, max_length=45)
     mac_address: str | None = Field(None, max_length=20)
     location: str | None = Field(None, max_length=200)
+    organization: str | None = Field(None, max_length=100, description="组织(字段管理维护)")
+    cabinet_u: str | None = Field(None, max_length=100, description="机柜U位(如 机柜03-U12)")
     status: str = Field("in_use", description="状态: in_use/idle/fault/maintenance/scrap")
     purchase_date: datetime | None = None
     warranty_expire: datetime | None = None
@@ -39,7 +41,7 @@ class AssetBase(BaseModel):
             return "in_use"
         return v
 
-    @field_validator("ip_address", "it_asset_code", "financial_asset_code", mode="before")
+    @field_validator("ip_address", "it_asset_code", "financial_asset_code", "organization", "cabinet_u", mode="before")
     @classmethod
     def normalize_empty_to_none(cls, v):
         """Treat empty strings as null so uniqueness constraints ignore unset values."""
@@ -63,6 +65,8 @@ class AssetUpdate(BaseModel):
     ip_address: str | None = None
     mac_address: str | None = None
     location: str | None = None
+    organization: str | None = None
+    cabinet_u: str | None = None
     status: str | None = None
     purchase_date: datetime | None = None
     warranty_expire: datetime | None = None

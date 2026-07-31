@@ -9,18 +9,23 @@ export const defaultAssetFormSchema = [
   // ===== Basic Info =====
   { type: 'divider', label: '基础信息', span: 24 },
   {
+    type: 'select', label: '组织', prop: 'organization', span: 12,
+    placeholder: '请选择或新增组织',
+    source: 'system_field', sourceCode: 'organization', options: [],
+  },
+  {
     type: 'input', label: '设备名称', prop: 'device_name', required: true, span: 12,
     placeholder: '如：核心交换机-01',
   },
   {
     // 设备类型：两级联动（大类 → 子类型），避免下拉过长
-    type: 'select-cascade', label: '设备类型', prop: 'device_type', required: true, span: 12,
+    type: 'select-cascade', label: '设备类型', prop: 'device_type', required: true, span: 12, source: 'system_field', sourceCode: 'device_type',
     defaultValue: 'switch',
     cascaderOptions: DEVICE_CATEGORY_TREE,
   },
   // 品牌：与授权管理 license_form.brand 保持一致（select-icon 单选：华为/深信服/绿盟/H3C/信锐）
   {
-    type: 'select-icon', label: '品牌', prop: 'brand', span: 12,
+    type: 'select-icon', label: '品牌', prop: 'brand', span: 12, source: 'system_field', sourceCode: 'brand',
     options: [
       { label: '华为', value: '华为', icon: '/brand-icons/huawei.png' },
       { label: '深信服', value: '深信服', icon: '/brand-icons/sangfor.png' },
@@ -45,40 +50,37 @@ export const defaultAssetFormSchema = [
   // ===== Dynamic Fields (conditional on device_type) =====
   { type: 'divider', label: '设备特性（动态）', span: 24 },
 
-  // 端口配置（按类型）+ 堆叠 + 管理VLAN：网络设备类（交换机/路由器/集线器/其他设备）与交换机一致
+  // 端口配置（按类型）+ 堆叠：网络设备类（交换机/路由器/集线器）与防火墙统一展示（合并去重，避免字段重复渲染）
   {
     type: 'portGroups', label: '端口配置（按类型）', prop: 'port_groups', span: 24,
-    visibleWhen: { prop: 'device_type', in: ['switch', 'router', 'hub'] },
+    visibleWhen: { prop: 'device_type', in: ['switch', 'router', 'hub', 'firewall'] },
   },
   {
     type: 'stackConfig', label: '堆叠配置', prop: 'stack_config', span: 24,
-    visibleWhen: { prop: 'device_type', in: ['switch', 'router', 'hub'] },
+    visibleWhen: { prop: 'device_type', in: ['switch', 'router', 'hub', 'firewall'] },
   },
+  // 其他设备 / 系统类设备（不含集线器）：默认只有一个 ETH-0 接口，置于管理VLAN之前
+  {
+    type: 'input', label: 'ETH接口数', prop: 'eth_count', span: 12,
+    defaultValue: 1, min: 1, max: 64,
+    placeholder: '默认 1（即 ETH-0），新增则为 ETH-1…',
+    visibleWhen: { prop: 'device_type', in: [
+      'other',
+      'internet_behavior', 'bastion', 'ips', 'ids', 'ddos', 'vpn', 'antivirus',
+      'admission', 'auth', 'nms', 'database', 'ops_audit', 'api_gateway',
+    ] },
+  },
+  // 管理VLAN：对所有设备类型均展示（无 visibleWhen），含后续通过字段管理新增的设备类型
   {
     type: 'input', label: '管理VLAN', prop: 'vlan_range', span: 12,
     placeholder: '如：1-100, 200',
-    visibleWhen: { prop: 'device_type', in: ['switch', 'router', 'hub'] },
-  },
-
-  // 防火墙：与交换机一致增加端口配置 + 堆叠 + 管理VLAN；安全域改为可多选
-  {
-    type: 'portGroups', label: '端口配置（按类型）', prop: 'port_groups', span: 24,
-    visibleWhen: { prop: 'device_type', equals: 'firewall' },
-  },
-  {
-    type: 'stackConfig', label: '堆叠配置', prop: 'stack_config', span: 24,
-    visibleWhen: { prop: 'device_type', equals: 'firewall' },
-  },
-  {
-    type: 'input', label: '管理VLAN', prop: 'vlan_range', span: 12,
-    placeholder: '如：1-100, 200',
-    visibleWhen: { prop: 'device_type', equals: 'firewall' },
   },
 
   // 路由器：路由协议改为可多选（其余端口配置已在上方统一块支持）
   {
     type: 'select', label: '路由协议', prop: 'protocol', span: 12,
     defaultValue: [], multiple: true,
+    source: 'system_field', sourceCode: 'protocol',
     options: [
       { label: 'OSPF', value: 'ospf' },
       { label: 'BGP', value: 'bgp' },
@@ -98,6 +100,7 @@ export const defaultAssetFormSchema = [
   {
     type: 'select', label: '安全域', prop: 'security_zones', span: 12,
     multiple: true,
+    source: 'system_field', sourceCode: 'security_zones',
     options: [
       { label: 'Trust（信任）', value: 'trust' },
       { label: 'Untrust（不信任）', value: 'untrust' },
@@ -110,18 +113,6 @@ export const defaultAssetFormSchema = [
     type: 'number', label: '策略数', prop: 'policy_count', span: 12,
     defaultValue: 0, min: 0, max: 9999,
     visibleWhen: { prop: 'device_type', equals: 'firewall' },
-  },
-
-  // 其他设备 / 系统类设备：默认只有一个 ETH-0 接口（ge_elec×1），可新增 ETH-1…
-  {
-    type: 'input', label: 'ETH接口数', prop: 'eth_count', span: 12,
-    defaultValue: 1, min: 1, max: 64,
-    placeholder: '默认 1（即 ETH-0），新增则为 ETH-1…',
-    visibleWhen: { prop: 'device_type', in: [
-      'other', 'hub',
-      'internet_behavior', 'bastion', 'ips', 'ids', 'ddos', 'vpn', 'antivirus',
-      'admission', 'auth', 'nms', 'database', 'ops_audit', 'api_gateway',
-    ] },
   },
 
   // 安全设备类（非防火墙）子类型 + 防护级别
@@ -165,7 +156,8 @@ export const defaultAssetFormSchema = [
       { label: '已报废', value: 'scrap' },
     ],
   },
-  { type: 'input', label: '存放位置', prop: 'location', span: 24, placeholder: '如：机房A-机柜03-U12' },
+  { type: 'select', label: '存放位置', prop: 'location', span: 24, placeholder: '请选择或新增位置', source: 'system_field', sourceCode: 'location', options: [] },
+  { type: 'input', label: '机柜U位', prop: 'cabinet_u', span: 12, placeholder: '如：机柜03-U12' },
   { type: 'date', label: '采购日期', prop: 'purchase_date', span: 12 },
   { type: 'date', label: '保修到期', prop: 'warranty_expire', span: 12 },
   { type: 'textarea', label: '备注', prop: 'remark', span: 24, rows: 2 },
@@ -177,7 +169,7 @@ export const defaultAssetFormSchema = [
  * will be stored in the `extra_data` JSON column (if available) or ignored.
  */
 export const coreAssetFields = [
-  'device_name', 'device_type', 'brand', 'model',
+  'device_name', 'device_type', 'organization', 'cabinet_u', 'brand', 'model',
   'serial_number', 'it_asset_code', 'financial_asset_code',
   'ip_address', 'mac_address', 'location',
   'status', 'purchase_date', 'warranty_expire', 'remark',

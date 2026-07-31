@@ -492,6 +492,16 @@ watch(() => props.modelValue, (newVal) => {
   nextTick(() => { syncing = false })
 }, { deep: true })
 
+// Re-apply defaults whenever the set of visible fields changes.
+// e.g. when the user picks device_type and a conditional field like eth_count
+// becomes visible, its default value (1) must be written into the model so it
+// is persisted on submit. initDefaults only fills fields that are still
+// undefined, so it never overwrites a value the user already entered.
+watch(
+  () => visibleFields.value.map((f) => f.prop).join(','),
+  () => { initDefaults() }
+)
+
 // Sync from child → parent
 watch(formData, (val) => {
   if (syncing) return

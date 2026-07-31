@@ -21,6 +21,11 @@
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
+        <el-form-item label="组织">
+          <el-select v-model="searchForm.organization" placeholder="全部" clearable style="width: 140px">
+            <el-option v-for="item in organizationOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">
             <el-icon><Search /></el-icon> 查询
@@ -86,6 +91,11 @@
           @row-dblclick="handleDetail"
         >
           <el-table-column v-if="isColumnVisible('id')" prop="id" label="ID" width="70" sortable="custom" />
+          <el-table-column v-if="isColumnVisible('organization')" label="组织" width="120" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ resolveOptionLabel(organizationOptions, row.organization) }}</span>
+            </template>
+          </el-table-column>
           <el-table-column v-if="isColumnVisible('device_name')" prop="device_name" label="设备名称" min-width="120">
             <template #default="{ row }">
               <div class="device-name-cell">
@@ -118,7 +128,12 @@
           <el-table-column v-if="isColumnVisible('serial_number')" prop="serial_number" label="序列号" width="140" show-overflow-tooltip />
           <el-table-column v-if="isColumnVisible('it_asset_code')" prop="it_asset_code" label="IT资产编码" width="140" show-overflow-tooltip />
           <el-table-column v-if="isColumnVisible('financial_asset_code')" prop="financial_asset_code" label="财务资产编码" width="140" show-overflow-tooltip />
-          <el-table-column v-if="isColumnVisible('location')" prop="location" label="位置" min-width="120" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('location')" label="位置" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ resolveOptionLabel(locationOptions, row.location) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="isColumnVisible('cabinet_u')" prop="cabinet_u" label="机柜U位" width="120" show-overflow-tooltip />
           <!-- Dynamic columns for custom fields from form designer -->
           <el-table-column
             v-for="field in visibleDynamicFields"
@@ -393,6 +408,7 @@ import { defaultAssetFormSchema, coreAssetFields } from '@/api/assetFormSchema'
 import SchemaFormRenderer from '@/components/SchemaFormRenderer.vue'
 import { summarizePortGroups } from '@/utils/portNaming'
 import { DEVICE_CATEGORY_TREE, DEVICE_TYPE_LABEL_MAP, getDeviceTypeIcon, deviceTypeLabel as deviceTypeLabelFn } from '@/constants/vendors'
+import { resolveSystemFieldOptions, getFieldOptions, buildDeviceTypeLabelMap } from '@/api/system-field'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -415,7 +431,10 @@ const detailData = ref(null)
 // ===== Quick preview state =====
 const selectedRow = ref(null)
 
-const deviceTypes = DEVICE_CATEGORY_TREE
+const deviceTypes = ref(DEVICE_CATEGORY_TREE)
+const dynamicDeviceTypeLabelMap = ref({})
+const organizationOptions = ref([])
+const locationOptions = ref([])
 
 const statusOptions = [
   { label: '使用中', value: 'in_use' },
@@ -425,7 +444,7 @@ const statusOptions = [
   { label: '已报废', value: 'scrap' },
 ]
 
-const searchForm = reactive({ keyword: '', device_type: '', status: '' })
+const searchForm = reactive({ keyword: '', device_type: '', status: '', organization: '' })
 const pagination = reactive({ page: 1, size: 20, total: 0 })
 
 // ID 排序：desc(倒序，默认) / asc(正序)
@@ -451,7 +470,7 @@ async function loadFormSchema() {
         ? JSON.parse(config.form_schema)
         : config.form_schema
       if (Array.isArray(parsed) && parsed.length > 0) {
-        formSchema.value = parsed
+        formSchema.value = await resolveSystemFieldOptions(parsed)
         schemaSource.value = 'backend'
       }
     }
@@ -481,6 +500,7 @@ const COLUMN_STORAGE_KEY = 'asset_table_visible_columns'
 // Core table columns (static, always in selector)
 const coreTableColumns = [
   { prop: 'id', label: 'ID' },
+  { prop: 'organization', label: '组织' },
   { prop: 'device_name', label: '设备名称' },
   { prop: 'device_type', label: '类型' },
   { prop: 'brand', label: '品牌' },
@@ -491,6 +511,7 @@ const coreTableColumns = [
   { prop: 'it_asset_code', label: 'IT资产编码' },
   { prop: 'financial_asset_code', label: '财务资产编码' },
   { prop: 'location', label: '位置' },
+  { prop: 'cabinet_u', label: '机柜U位' },
   { prop: 'status', label: '状态' },
   { prop: 'purchase_date', label: '采购日期' },
   { prop: 'warranty_expire', label: '保修到期' },
@@ -500,8 +521,8 @@ const coreTableColumns = [
 
 // Default visible column props
 const defaultVisibleColumns = [
-  'id', 'device_name', 'device_type', 'brand', 'model',
-  'ip_address', 'vlan_range', 'location', 'status',
+  'id', 'organization', 'device_name', 'device_type', 'brand', 'model',
+  'ip_address', 'vlan_range', 'location', 'cabinet_u', 'status',
 ]
 
 // Visible column keys (persisted in localStorage)
@@ -584,7 +605,8 @@ function isFieldVisibleForRow(field, row) {
 const previewFields = computed(() => {
   return formSchema.value.filter((f) => {
     if (['divider', 'alert', 'text'].includes(f.type)) return false
-    if (['device_name', 'device_type', 'brand', 'status', 'remark', 'purchase_date', 'warranty_expire', 'created_at', 'updated_at'].includes(f.prop)) return false
+    // device_type 不再被排除：让设备类型与"组织"在 preview 字段列表并排出现（走 select-cascade 解析 → 中文 label）
+    if (['device_name', 'brand', 'status', 'remark', 'purchase_date', 'warranty_expire', 'created_at', 'updated_at'].includes(f.prop)) return false
     return isFieldVisibleForRow(f, selectedRow.value)
   })
 })
@@ -617,7 +639,8 @@ const completenessColor = computed(() => {
 
 // ==================== Helpers ====================
 function deviceTypeLabel(val) {
-  return deviceTypeLabelFn(val)
+  if (!val) return '未分类'
+  return dynamicDeviceTypeLabelMap.value[val] || deviceTypeLabelFn(val)
 }
 function statusLabel(val) {
   return statusOptions.find((s) => s.value === val)?.label || val
@@ -626,9 +649,21 @@ function statusTagType(val) {
   const map = { in_use: 'success', idle: 'info', fault: 'danger', maintenance: 'warning', scrap: '' }
   return map[val] || ''
 }
+
+// ==================== 设备类型按大类配色（网络=蓝 / 安全=红 / 软件=紫） ====================
+// 从 DEVICE_CATEGORY_TREE 自动派生出 value → 类别索引，避免硬编码漏改。
+const DEVICE_CATEGORY_COLORS = ['#409EFF', '#F56C6C', '#722ED1'] // 蓝 / 红 / 紫（Element Plus primary / danger / 自定义紫）
+const DEVICE_TYPE_CATEGORY_INDEX = (() => {
+  const m = {}
+  DEVICE_CATEGORY_TREE.forEach((cat, idx) => {
+    ;(cat.options || []).forEach((o) => { m[o.value] = idx })
+  })
+  return m
+})()
+
 function deviceTypeColor(val) {
-  // 用图标 emoji 的占位色块即可；这里统一用中性灰底 + emoji 展示
-  return '#909399'
+  const idx = DEVICE_TYPE_CATEGORY_INDEX[val]
+  return idx === undefined ? '#909399' : DEVICE_CATEGORY_COLORS[idx]
 }
 function deviceTypeEmoji(val) {
   return getDeviceTypeIcon(val).emoji || '📦'
@@ -662,6 +697,15 @@ function formatFieldValue(row, field) {
     return `堆叠: 开启 (${Number(val.count) || 0} 台)`
   }
   if (val === undefined || val === null || val === '') return '—'
+  // Cascader / select-cascade: cascaderOptions = [{label, options:[{value,label}]}, ...]
+  if ((field.type === 'cascader' || field.type === 'select-cascade') && Array.isArray(field.cascaderOptions)) {
+    for (const cat of field.cascaderOptions) {
+      for (const opt of cat.options || []) {
+        if (opt.value === val) return opt.label || val
+      }
+    }
+    return val // not found, fallback to raw value
+  }
   if (field.type === 'select' && field.options) {
     if (Array.isArray(val)) {
       if (val.length === 0) return '—'
@@ -677,6 +721,15 @@ function formatFieldValue(row, field) {
     return val.join(', ')
   }
   return val
+}
+
+// Resolve a stored value to its option label, for system_field-sourced columns
+// (e.g. organization/location: DB stores value=internal code, label=display name).
+// Falls back to the raw value when the option cannot be found.
+function resolveOptionLabel(options, value) {
+  if (value === undefined || value === null || value === '') return '—'
+  const opt = (options || []).find((o) => o.value === value)
+  return opt ? opt.label : value
 }
 
 function formatPreviewValue(field) {
@@ -698,6 +751,7 @@ async function fetchData() {
       keyword: searchForm.keyword || undefined,
       device_type: searchForm.device_type || undefined,
       status: searchForm.status || undefined,
+      organization: searchForm.organization || undefined,
       order: sortState.value,
     })
     tableData.value = data.items
@@ -723,6 +777,7 @@ function handleReset() {
   searchForm.keyword = ''
   searchForm.device_type = ''
   searchForm.status = ''
+  searchForm.organization = ''
   handleSearch()
 }
 
@@ -847,9 +902,28 @@ async function handleDelete(row) {
 
 onMounted(() => {
   initColumnVisibility()
+  loadDeviceTypeOptions()
+  loadOrganizationOptions()
+  loadLocationOptions()
   loadFormSchema()
   fetchData()
 })
+
+async function loadDeviceTypeOptions() {
+  const tree = await getFieldOptions('device_type')
+  if (Array.isArray(tree) && tree.length) {
+    deviceTypes.value = tree
+    dynamicDeviceTypeLabelMap.value = buildDeviceTypeLabelMap(tree)
+  }
+}
+
+async function loadOrganizationOptions() {
+  organizationOptions.value = await getFieldOptions('organization')
+}
+
+async function loadLocationOptions() {
+  locationOptions.value = await getFieldOptions('location')
+}
 </script>
 
 <style scoped>

@@ -117,11 +117,25 @@ export function generateEthPorts(ethCount = 1) {
 }
 
 /**
+ * Device types that rely on ETH-style interfaces (ETH-0, ETH-1 ...)
+ * instead of detailed port groups. Used as a safety net so port-connection
+ * can always auto-create at least one ETH port even when eth_count was not
+ * persisted (e.g. legacy rows created before the default-value fix).
+ * @type {string[]}
+ */
+const ETH_FAMILY_DEVICE_TYPES = [
+  'other', 'hub', 'internet_behavior', 'bastion', 'ips', 'ids',
+  'ddos', 'vpn', 'antivirus', 'admission', 'auth', 'nms',
+  'database', 'ops_audit', 'api_gateway',
+]
+
+/**
  * Resolve physical ports for any device based on its stored config.
  * Priority:
  *  1. typed port_groups (switch/router/firewall with portGroups) -> generatePorts
  *  2. eth_count (other/system/default) -> generateEthPorts (ETH-0 ...)
- *  3. legacy fallback: extra_data.port_count -> generic 端口N
+ *  3. safety net: ETH-family device without any port config -> generateEthPorts(1)
+ *  4. legacy fallback: extra_data.port_count -> generic 端口N
  * @returns {Array} flat physical port list
  */
 export function resolveAssetPorts(asset) {
@@ -132,6 +146,14 @@ export function resolveAssetPorts(asset) {
   }
   if (extra.eth_count && Number(extra.eth_count) >= 1) {
     return generateEthPorts(extra.eth_count)
+  }
+  // Safety net: ETH-family devices (e.g. others/security/software systems) that
+  // have no explicit port config still auto-create at least ETH-0, mirroring how
+  // switches auto-create ports. This guarantees port-connection always has ports
+  // to wire, regardless of whether eth_count was persisted.
+  const dt = asset?.device_type
+  if (dt && ETH_FAMILY_DEVICE_TYPES.includes(dt)) {
+    return generateEthPorts(1)
   }
   const fb = Number(extra.port_count) || 0
   if (fb > 0) {

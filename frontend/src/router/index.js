@@ -115,6 +115,12 @@ const routes = [
             component: () => import('@/views/system/designer/index.vue'),
             meta: { title: '表单设计', icon: 'EditPen', adminOnly: true },
           },
+          {
+            path: 'fields',
+            name: 'SystemFields',
+            component: () => import('@/views/system/fields/index.vue'),
+            meta: { title: '字段管理', icon: 'Files', adminOnly: true },
+          },
         ],
       },
     ],

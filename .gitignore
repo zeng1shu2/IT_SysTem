@@ -37,3 +37,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Runtime (manage.ps1 / manage.bat 启停脚本的日志与 PID 目录)
+.runtime/

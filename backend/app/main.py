@@ -15,6 +15,7 @@ import app.models.role  # noqa: F401
 import app.models.asset  # noqa: F401
 import app.models.asset_modules  # noqa: F401
 import app.models.form_config  # noqa: F401
+import app.models.system_field  # noqa: F401
 
 
 @asynccontextmanager
@@ -31,6 +32,9 @@ async def lifespan(app: FastAPI):
 
     db = SessionLocal()
     try:
+        # --- Migrate existing tables (add new columns if missing) ---
+        _migrate_asset_columns(db)
+
         # Check if admin user exists
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
@@ -82,8 +86,9 @@ async def lifespan(app: FastAPI):
         # --- Asset form (设备类型两级联动 + 全类型端口配置 + 安全域/路由协议多选) ---
         _seed_form_config(db, "asset_form", "资产统计表单", "资产统计页面的动态表单配置", [
             {"type": "divider", "label": "基础信息", "span": 24},
+            {"type": "select", "label": "组织", "prop": "organization", "span": 12, "placeholder": "请选择或新增组织", "source": "system_field", "sourceCode": "organization", "options": []},
             {"type": "input", "label": "设备名称", "prop": "device_name", "required": True, "span": 12, "placeholder": "如：核心交换机-01"},
-            {"type": "select-cascade", "label": "设备类型", "prop": "device_type", "required": True, "span": 12, "defaultValue": "switch", "cascaderOptions": [
+            {"type": "select-cascade", "label": "设备类型", "prop": "device_type", "required": True, "span": 12, "defaultValue": "switch", "source": "system_field", "sourceCode": "device_type", "cascaderOptions": [
                 {"label": "网络设备类", "options": [
                     {"label": "交换机", "value": "switch"}, {"label": "路由器", "value": "router"},
                     {"label": "集线器", "value": "hub"}, {"label": "其他设备", "value": "other"},
@@ -101,7 +106,7 @@ async def lifespan(app: FastAPI):
                 ]},
             ]},
             # 品牌：与授权管理 license_form.brand 保持一致（select-icon 单选：华为/深信服/绿盟/H3C/信锐）
-            {"type": "select-icon", "label": "品牌", "prop": "brand", "span": 12, "options": [
+            {"type": "select-icon", "label": "品牌", "prop": "brand", "span": 12, "source": "system_field", "sourceCode": "brand", "options": [
                 {"label": "华为", "value": "华为", "icon": "/brand-icons/huawei.png"},
                 {"label": "深信服", "value": "深信服", "icon": "/brand-icons/sangfor.png"},
                 {"label": "绿盟", "value": "绿盟", "icon": "/brand-icons/nsfocus.png"},
@@ -116,31 +121,28 @@ async def lifespan(app: FastAPI):
             {"type": "input", "label": "管理IP", "prop": "ip_address", "span": 12, "placeholder": "如：192.168.1.1"},
             {"type": "input", "label": "MAC地址", "prop": "mac_address", "span": 12, "placeholder": "如：00:1A:2B:3C:4D:5E"},
             {"type": "divider", "label": "设备特性（动态）", "span": 24},
-            # 网络设备类（交换机/路由器/集线器）：与交换机一致增加端口配置 + 堆叠 + 管理VLAN
-            {"type": "portGroups", "label": "端口配置（按类型）", "prop": "port_groups", "span": 24, "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub"]}},
-            {"type": "stackConfig", "label": "堆叠配置", "prop": "stack_config", "span": 24, "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub"]}},
-            {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200", "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub"]}},
-            # 防火墙：与交换机一致增加端口配置 + 堆叠 + 管理VLAN
-            {"type": "portGroups", "label": "端口配置（按类型）", "prop": "port_groups", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
-            {"type": "stackConfig", "label": "堆叠配置", "prop": "stack_config", "span": 24, "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
-            {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200", "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
+            # 网络设备类（交换机/路由器/集线器）与防火墙：统一端口配置 + 堆叠（合并去重，避免字段重复渲染）
+            {"type": "portGroups", "label": "端口配置（按类型）", "prop": "port_groups", "span": 24, "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub", "firewall"]}},
+            {"type": "stackConfig", "label": "堆叠配置", "prop": "stack_config", "span": 24, "visibleWhen": {"prop": "device_type", "in": ["switch", "router", "hub", "firewall"]}},
+            # 其他设备/系统类（不含集线器）：默认仅 ETH-0 接口（eth_count）—— 置于管理VLAN之前
+            {"type": "input", "label": "ETH接口数", "prop": "eth_count", "span": 12, "defaultValue": 1, "min": 1, "max": 64,
+             "placeholder": "默认 1（即 ETH-0），新增则为 ETH-1…",
+             "visibleWhen": {"prop": "device_type", "in": ["other", "internet_behavior", "bastion", "ips", "ids", "ddos", "vpn", "antivirus", "admission", "auth", "nms", "database", "ops_audit", "api_gateway"]}},
+            # 管理VLAN：对所有设备类型均展示（无 visibleWhen），含后续通过字段管理新增的设备类型
+            {"type": "input", "label": "管理VLAN", "prop": "vlan_range", "span": 12, "placeholder": "如：1-100, 200"},
             # 路由器：路由协议改为可多选
-            {"type": "select", "label": "路由协议", "prop": "protocol", "span": 12, "defaultValue": [], "multiple": True, "options": [
+            {"type": "select", "label": "路由协议", "prop": "protocol", "span": 12, "defaultValue": [], "multiple": True, "source": "system_field", "sourceCode": "protocol", "options": [
                 {"label": "OSPF", "value": "ospf"}, {"label": "BGP", "value": "bgp"},
                 {"label": "RIP", "value": "rip"}, {"label": "静态路由", "value": "static"},
                 {"label": "ISIS", "value": "isis"},
             ], "visibleWhen": {"prop": "device_type", "equals": "router"}},
             {"type": "number", "label": "WAN口数", "prop": "wan_count", "span": 12, "min": 0, "max": 16, "visibleWhen": {"prop": "device_type", "equals": "router"}},
             # 防火墙：安全域改为可多选
-            {"type": "select", "label": "安全域", "prop": "security_zones", "span": 12, "multiple": True, "options": [
+            {"type": "select", "label": "安全域", "prop": "security_zones", "span": 12, "multiple": True, "source": "system_field", "sourceCode": "security_zones", "options": [
                 {"label": "Trust（信任）", "value": "trust"}, {"label": "Untrust（不信任）", "value": "untrust"},
                 {"label": "DMZ（隔离区）", "value": "dmz"}, {"label": "自定义", "value": "custom"},
             ], "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
             {"type": "number", "label": "策略数", "prop": "policy_count", "span": 12, "defaultValue": 0, "min": 0, "max": 9999, "visibleWhen": {"prop": "device_type", "equals": "firewall"}},
-            # 其他设备/系统类：默认仅 ETH-0 接口（eth_count）
-            {"type": "input", "label": "ETH接口数", "prop": "eth_count", "span": 12, "defaultValue": 1, "min": 1, "max": 64,
-             "placeholder": "默认 1（即 ETH-0），新增则为 ETH-1…",
-             "visibleWhen": {"prop": "device_type", "in": ["other", "hub", "internet_behavior", "bastion", "ips", "ids", "ddos", "vpn", "antivirus", "admission", "auth", "nms", "database", "ops_audit", "api_gateway"]}},
             # 安全设备类（非防火墙）子类型 + 防护级别
             {"type": "select", "label": "安全子类", "prop": "sub_type", "span": 12, "options": [
                 {"label": "IDS（入侵检测）", "value": "ids"}, {"label": "IPS（入侵防御）", "value": "ips"},
@@ -156,7 +158,8 @@ async def lifespan(app: FastAPI):
                 {"label": "故障", "value": "fault"}, {"label": "维护中", "value": "maintenance"},
                 {"label": "已报废", "value": "scrap"},
             ]},
-            {"type": "input", "label": "存放位置", "prop": "location", "span": 24, "placeholder": "如：机房A-机柜03-U12"},
+            {"type": "select", "label": "存放位置", "prop": "location", "span": 24, "placeholder": "请选择或新增位置", "source": "system_field", "sourceCode": "location", "options": []},
+            {"type": "input", "label": "机柜U位", "prop": "cabinet_u", "span": 12, "placeholder": "如：机柜03-U12"},
             {"type": "date", "label": "采购日期", "prop": "purchase_date", "span": 12},
             {"type": "date", "label": "保修到期", "prop": "warranty_expire", "span": 12},
             {"type": "textarea", "label": "备注", "prop": "remark", "span": 24, "rows": 2},
@@ -192,7 +195,7 @@ async def lifespan(app: FastAPI):
         # --- External Broadband form ---
         _seed_form_config(db, "external_broadband_form", "IPS带宽表单", "IPS带宽页面的动态表单配置", [
             {"type": "divider", "label": "线路信息", "span": 24},
-            {"type": "select-icon", "label": "运营商", "prop": "operator", "span": 12, "options": [
+            {"type": "select-icon", "label": "运营商", "prop": "operator", "span": 12, "source": "system_field", "sourceCode": "operator", "options": [
                 {"label": "中国电信", "value": "电信", "icon": "/brand-icons/telecom.png"},
                 {"label": "中国联通", "value": "联通", "icon": "/brand-icons/unicom.png"},
                 {"label": "中国移动", "value": "移动", "icon": "/brand-icons/mobile.png"},
@@ -220,14 +223,14 @@ async def lifespan(app: FastAPI):
         # --- License Management form ---
         _seed_form_config(db, "license_form", "授权管理表单", "授权管理页面的动态表单配置", [
             {"type": "divider", "label": "授权信息", "span": 24},
-            {"type": "select-icon", "label": "品牌", "prop": "brand", "span": 12, "options": [
+            {"type": "select-icon", "label": "品牌", "prop": "brand", "span": 12, "source": "system_field", "sourceCode": "brand", "options": [
                 {"label": "华为", "value": "华为", "icon": "/brand-icons/huawei.png"},
                 {"label": "深信服", "value": "深信服", "icon": "/brand-icons/sangfor.png"},
                 {"label": "绿盟", "value": "绿盟", "icon": "/brand-icons/nsfocus.png"},
                 {"label": "H3C", "value": "H3C", "icon": "/brand-icons/h3c.png"},
                 {"label": "信锐", "value": "信锐", "emoji": "📡"},
             ]},
-            {"type": "select-cascade", "label": "设备类型", "prop": "device_type", "span": 12, "cascaderOptions": [
+            {"type": "select-cascade", "label": "设备类型", "prop": "device_type", "span": 12, "source": "system_field", "sourceCode": "device_type", "cascaderOptions": [
                 {"label": "网络设备类", "options": [
                     {"label": "交换机", "value": "switch"}, {"label": "路由器", "value": "router"},
                     {"label": "集线器", "value": "hub"}, {"label": "其他设备", "value": "other"},
@@ -272,10 +275,106 @@ async def lifespan(app: FastAPI):
         ])
 
         print("[Startup] Form configs seeded/updated")
+
+        # --- Seed managed system fields (字段管理) ---
+        _seed_system_fields(db)
     finally:
         db.close()
 
     yield
+
+
+def _migrate_asset_columns(db):
+    """Add organization / cabinet_u columns to the assets table if missing."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    existing = {c["name"] for c in inspector.get_columns("assets")}
+    added = []
+    for col, ddl in (("organization", "VARCHAR(100)"), ("cabinet_u", "VARCHAR(100)")):
+        if col not in existing:
+            db.execute(text(f"ALTER TABLE assets ADD COLUMN {col} {ddl}"))
+            added.append(col)
+    if added:
+        db.commit()
+        print(f"[Startup] Migrated assets table: added columns {added}")
+
+
+def _seed_system_fields(db):
+    """Seed managed option fields (字段管理) once, if the table is empty."""
+    from app.models.system_field import SystemField
+
+    if db.query(SystemField).count() > 0:
+        return
+
+    rows = []
+
+    # 品牌 (value == label)
+    brands = [
+        ("华为", "/brand-icons/huawei.png", None),
+        ("深信服", "/brand-icons/sangfor.png", None),
+        ("绿盟", "/brand-icons/nsfocus.png", None),
+        ("H3C", "/brand-icons/h3c.png", None),
+        ("信锐", None, "📡"),
+    ]
+    for i, (label, icon, emoji) in enumerate(brands):
+        rows.append(dict(field_code="brand", field_name="品牌", value=label, label=label,
+                         icon=icon, emoji=emoji, sort=i, is_active=1, parent_value=None, level=0))
+
+    # 设备类型：3 大类 + 24 小类
+    device_categories = [
+        ("network", "网络设备类", [
+            ("switch", "交换机"), ("router", "路由器"), ("hub", "集线器"), ("other", "其他设备"),
+        ]),
+        ("security", "安全设备类", [
+            ("firewall", "防火墙"), ("internet_behavior", "上网行为管理"), ("bastion", "堡垒机"),
+            ("ips", "IPS"), ("ids", "IDS"), ("ddos", "DDoS"), ("vpn", "VPN"), ("antivirus", "杀毒软件"),
+        ]),
+        ("software", "其他软件类", [
+            ("admission", "准入系统"), ("auth", "认证系统"), ("nms", "网管系统"),
+            ("database", "数据库系统"), ("ops_audit", "运维审计系统"), ("api_gateway", "API网关系统"),
+        ]),
+    ]
+    cat_sort = 0
+    for cat_value, cat_label, subs in device_categories:
+        rows.append(dict(field_code="device_type", field_name="设备类型", value=cat_value, label=cat_label,
+                         icon=None, emoji=None, sort=cat_sort, is_active=1, parent_value=None, level=0))
+        cat_sort += 1
+        for i, (sub_value, sub_label) in enumerate(subs):
+            rows.append(dict(field_code="device_type", field_name="设备类型", value=sub_value, label=sub_label,
+                             icon=None, emoji=None, sort=i, is_active=1, parent_value=cat_value, level=1))
+
+    # 安全域
+    security_zones = [("trust", "Trust（信任）"), ("untrust", "Untrust（不信任）"),
+                      ("dmz", "DMZ（隔离区）"), ("custom", "自定义")]
+    for i, (value, label) in enumerate(security_zones):
+        rows.append(dict(field_code="security_zones", field_name="安全域", value=value, label=label,
+                         icon=None, emoji=None, sort=i, is_active=1, parent_value=None, level=0))
+
+    # 路由协议
+    protocols = [("ospf", "OSPF"), ("bgp", "BGP"), ("rip", "RIP"), ("static", "静态路由"), ("isis", "ISIS")]
+    for i, (value, label) in enumerate(protocols):
+        rows.append(dict(field_code="protocol", field_name="路由协议", value=value, label=label,
+                         icon=None, emoji=None, sort=i, is_active=1, parent_value=None, level=0))
+
+    # 运营商
+    operators = [
+        ("电信", "中国电信", "/brand-icons/telecom.png", None),
+        ("联通", "中国联通", "/brand-icons/unicom.png", None),
+        ("移动", "中国移动", "/brand-icons/mobile.png", None),
+        ("广电", "中国广电", "/brand-icons/broadcast.png", None),
+        ("其他", "其他", None, "🌐"),
+    ]
+    for i, (value, label, icon, emoji) in enumerate(operators):
+        rows.append(dict(field_code="operator", field_name="运营商", value=value, label=label,
+                         icon=icon, emoji=emoji, sort=i, is_active=1, parent_value=None, level=0))
+
+    # 组织 / 位置：默认空，由管理员在字段管理中手动添加（此处不写入任何行）
+
+    for r in rows:
+        db.add(SystemField(**r))
+    db.commit()
+    print(f"[Startup] Seeded {len(rows)} system-field options")
 
 
 app = FastAPI(

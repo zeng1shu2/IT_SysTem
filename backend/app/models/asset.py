@@ -35,6 +35,8 @@ class Asset(Base):
     ip_address = Column(String(45), nullable=True, comment="管理IP地址")
     mac_address = Column(String(20), nullable=True, comment="MAC地址")
     location = Column(String(200), nullable=True, comment="存放位置")
+    organization = Column(String(100), nullable=True, comment="组织(字段管理维护)")
+    cabinet_u = Column(String(100), nullable=True, comment="机柜U位(如 机柜03-U12)")
     status = Column(String(20), default="in_use", nullable=False, comment="状态: in_use/idle/fault/maintenance/scrap")
     purchase_date = Column(DateTime, nullable=True, comment="采购日期")
     warranty_expire = Column(DateTime, nullable=True, comment="保修到期")
