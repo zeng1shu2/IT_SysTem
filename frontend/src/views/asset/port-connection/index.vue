@@ -27,7 +27,7 @@
         <el-table-column label="设备名称" min-width="160">
           <template #default="{ row }">
             <div class="device-name-cell">
-              <span class="device-emoji">{{ deviceTypeEmoji(getDeviceType(row.asset_id)) }}</span>
+              <DeviceTypeIcon :val="getDeviceType(row.asset_id)" size="small" />
               <span>{{ row.asset_name }}</span>
             </div>
           </template>
@@ -81,9 +81,7 @@
       <div v-if="detailData" class="detail-body">
         <!-- Hero banner: device icon + name + type/brand (mirrors asset/index.vue detail-hero) -->
         <div class="detail-hero">
-          <div class="detail-hero-icon" :style="{ background: deviceTypeColor(detailDeviceType) }">
-            <span class="detail-hero-emoji">{{ deviceTypeEmoji(detailDeviceType) }}</span>
-          </div>
+          <DeviceTypeIcon :val="detailDeviceType" size="large" />
           <div class="detail-hero-info">
             <div class="detail-hero-name">{{ detailData.asset_name || '—' }}</div>
             <div class="detail-hero-meta">
@@ -552,6 +550,7 @@ import { getPortConnections, getPortConnection, getPortConnectionByAssetId, getR
 import { getAssets } from '@/api/asset'
 import { generatePorts, summarizePortGroups, resolveAssetPorts, generateEthPorts } from '@/utils/portNaming'
 import { DEVICE_TYPE_LABEL_MAP, getDeviceTypeIcon, DEVICE_CATEGORY_TREE } from '@/constants/vendors'
+import DeviceTypeIcon from '@/components/DeviceTypeIcon.vue'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -838,8 +837,6 @@ function hasEthTrunk(list) {
 }
 
 // ---- Asset meta helpers (lookup device_type / brand / model from cached assets) ----
-const DEVICE_TYPE_COLOR = { switch: '#409eff', router: '#67c23a', firewall: '#f56c6c', other: '#909399' }
-
 function findAsset(assetId) {
   return assetOptions.value.find((a) => a.id === assetId)
 }
@@ -853,10 +850,8 @@ function getModel(assetId) {
   return findAsset(assetId)?.model || ''
 }
 function deviceTypeColor(val) {
-  return DEVICE_TYPE_COLOR[val] || '#909399'
-}
-function deviceTypeEmoji(val) {
-  return getDeviceTypeIcon(val).emoji || '📦'
+  // 主题色优先取自 vendors.js 的 themeColor（保持单一真源）
+  return getDeviceTypeIcon(val).themeColor || '#909399'
 }
 function deviceTypeLabelFn(val) {
   return DEVICE_TYPE_LABEL_MAP[val] || val || '未知'
@@ -1070,9 +1065,8 @@ onMounted(() => {
 .section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
 
 /* ===== Device Name Icon (table column) ===== */
-.device-name-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.device-name-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .device-name-cell > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.device-emoji { font-size: 16px; }
 
 /* ===== Detail Drawer Hero (icon + name + type/brand) ===== */
 .detail-hero {
@@ -1083,16 +1077,6 @@ onMounted(() => {
   border-radius: 12px;
   padding: 18px 20px;
 }
-.detail-hero-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.detail-hero-emoji { font-size: 28px; }
 .detail-hero-info { flex: 1; min-width: 0; }
 .detail-hero-name {
   font-size: 18px;

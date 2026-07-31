@@ -1,9 +1,11 @@
 """FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import api_router
 from app.core.config import settings
@@ -16,6 +18,7 @@ import app.models.asset  # noqa: F401
 import app.models.asset_modules  # noqa: F401
 import app.models.form_config  # noqa: F401
 import app.models.system_field  # noqa: F401
+import app.models.icon  # noqa: F401
 
 
 @asynccontextmanager
@@ -398,6 +401,15 @@ app.add_middleware(
 
 # Register API routes
 app.include_router(api_router, prefix="/api/v1")
+
+# Mount icons static directory (uploaded icon files).
+# Saves to frontend/public/icons/{yyyyMM}/{uuid}.{ext}; accessible at /icons/{yyyyMM}/{file}.
+# In dev with Vite, frontend/public/ is auto-served by Vite at "/" — so /icons/...
+# is served by BOTH the FastAPI backend (port 8000) and Vite dev server (port 5173),
+# which is convenient for production but harmless in dev because Vite proxies /api to 8000.
+_ICONS_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "public" / "icons"
+_ICONS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/icons", StaticFiles(directory=str(_ICONS_DIR)), name="icons")
 
 
 @app.get("/", tags=["健康检查"])

@@ -101,7 +101,7 @@
           <el-table-column v-if="isColumnVisible('device_name')" prop="device_name" label="设备名称" min-width="120">
             <template #default="{ row }">
               <div class="device-name-cell">
-                <span class="device-emoji">{{ deviceTypeEmoji(row.device_type) }}</span>
+                <DeviceTypeIcon :val="row.device_type" size="small" />
                 <span>{{ row.device_name }}</span>
               </div>
             </template>
@@ -205,9 +205,7 @@
           </template>
           <div class="quick-preview-body">
             <div class="qp-top">
-              <div class="qp-icon" :style="{ background: deviceTypeColor(selectedRow.device_type) }">
-                <span>{{ deviceTypeEmoji(selectedRow.device_type) }}</span>
-              </div>
+              <DeviceTypeIcon :val="selectedRow.device_type" size="medium" />
               <div class="qp-name-area">
                 <div class="qp-name">{{ selectedRow.device_name }}</div>
                 <div class="qp-type">{{ deviceTypeLabel(selectedRow.device_type) }} · {{ selectedRow.brand || '未知品牌' }}</div>
@@ -250,9 +248,7 @@
     <el-drawer v-model="detailVisible" title="设备详情" size="55%" :close-on-click-modal="true">
       <div v-if="detailData" class="detail-body">
         <div class="detail-hero">
-          <div class="detail-hero-icon" :style="{ background: deviceTypeColor(detailData.device_type) }">
-            <span class="detail-hero-emoji">{{ deviceTypeEmoji(detailData.device_type) }}</span>
-          </div>
+          <DeviceTypeIcon :val="detailData.device_type" size="large" />
           <div class="detail-hero-info">
             <div class="detail-hero-name">{{ detailData.device_name }}</div>
             <div class="detail-hero-meta">
@@ -338,9 +334,7 @@
           <div class="preview-card">
             <!-- Device header -->
             <div class="preview-top">
-              <div class="preview-icon" :style="{ background: deviceTypeColor(formData.device_type) }">
-                <span>{{ deviceTypeEmoji(formData.device_type) }}</span>
-              </div>
+              <DeviceTypeIcon :val="formData.device_type" size="medium" />
               <div class="preview-name-area">
                 <div class="preview-device-name">{{ formData.device_name || '未命名设备' }}</div>
                 <div class="preview-device-type">
@@ -411,6 +405,8 @@ import { getAssets, getAsset, createAsset, updateAsset, deleteAsset } from '@/ap
 import { getFormConfigByCode } from '@/api/form_config'
 import { defaultAssetFormSchema, coreAssetFields } from '@/api/assetFormSchema'
 import SchemaFormRenderer from '@/components/SchemaFormRenderer.vue'
+import DeviceTypeIcon from '@/components/DeviceTypeIcon.vue'
+import { buildDeviceTypeIconMap } from '@/composables/deviceTypeIcons'
 import { summarizePortGroups } from '@/utils/portNaming'
 import { DEVICE_CATEGORY_TREE, DEVICE_TYPE_LABEL_MAP, getDeviceTypeIcon, deviceTypeLabel as deviceTypeLabelFn } from '@/constants/vendors'
 import { resolveSystemFieldOptions, getFieldOptions, buildDeviceTypeLabelMap } from '@/api/system-field'
@@ -479,6 +475,11 @@ async function loadFormSchema() {
       if (Array.isArray(parsed) && parsed.length > 0) {
         formSchema.value = await resolveSystemFieldOptions(parsed)
         schemaSource.value = 'backend'
+        // 将字段管理中为 device_type 选项配置的图标注入全局覆盖表，
+        // 使统计页/端口互联页的 <DeviceTypeIcon> 优先显示已上传的图标。
+        const dt = formSchema.value.find((f) => f.prop === 'device_type')
+        const dtOpts = dt ? (dt.cascaderOptions || dt.options) : null
+        if (dtOpts && dtOpts.length) buildDeviceTypeIconMap(dtOpts)
       }
     }
   } catch {
@@ -668,12 +669,13 @@ const DEVICE_TYPE_CATEGORY_INDEX = (() => {
   return m
 })()
 
+// 主题色优先取自 vendors.js 的 themeColor（保持单一真源），
+// 兜底从 DEVICE_CATEGORY_COLORS 取（向后兼容）。
 function deviceTypeColor(val) {
+  const iconInfo = getDeviceTypeIcon(val)
+  if (iconInfo.themeColor) return iconInfo.themeColor
   const idx = DEVICE_TYPE_CATEGORY_INDEX[val]
   return idx === undefined ? '#909399' : DEVICE_CATEGORY_COLORS[idx]
-}
-function deviceTypeEmoji(val) {
-  return getDeviceTypeIcon(val).emoji || '📦'
 }
 function formatDateTime(val) {
   if (!val) return '—'
@@ -940,8 +942,7 @@ async function loadLocationOptions() {
 /* ===== Table Header ===== */
 
 /* ===== Table Cell Styles ===== */
-.device-name-cell { display: flex; align-items: center; gap: 6px; }
-.device-emoji { font-size: 16px; }
+.device-name-cell { display: flex; align-items: center; gap: 8px; }
 .ip-text { font-family: 'Courier New', monospace; font-weight: 500; color: var(--el-color-primary); }
 .mono-text { font-family: 'Courier New', monospace; font-size: 13px; }
 
@@ -950,7 +951,6 @@ async function loadLocationOptions() {
 .quick-preview-header span { display: flex; align-items: center; gap: 6px; }
 .quick-preview-body { display: flex; flex-direction: column; gap: 16px; }
 .qp-top { display: flex; align-items: center; gap: 12px; }
-.qp-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; flex-shrink: 0; }
 .qp-name-area { flex: 1; min-width: 0; }
 .qp-name { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qp-type { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
@@ -972,8 +972,6 @@ async function loadLocationOptions() {
 /* ===== Detail Drawer ===== */
 .detail-body { padding: 0 4px; display: flex; flex-direction: column; gap: 20px; }
 .detail-hero { display: flex; align-items: center; gap: 16px; background: var(--el-bg-color-page); border-radius: 12px; padding: 20px; }
-.detail-hero-icon { width: 60px; height: 60px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.detail-hero-emoji { font-size: 30px; }
 .detail-hero-info { flex: 1; min-width: 0; }
 .detail-hero-name { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
 .detail-hero-meta { display: flex; align-items: center; gap: 8px; }
@@ -999,7 +997,6 @@ async function loadLocationOptions() {
 .preview-header { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 16px; }
 .preview-card { background: var(--el-bg-color-page); border: 1px solid var(--el-border-color-lighter); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .preview-top { display: flex; align-items: center; gap: 14px; }
-.preview-icon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; color: #fff; }
 .preview-name-area { flex: 1; min-width: 0; }
 .preview-device-name { font-size: 18px; font-weight: 700; color: var(--el-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .preview-device-type { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 2px; }
@@ -1016,7 +1013,6 @@ async function loadLocationOptions() {
 .completeness-value { font-weight: 700; font-size: 14px; }
 
 :deep(.el-table__row) { cursor: pointer; }
-:deep(.el-table__row:hover .device-emoji) { transform: scale(1.2); transition: transform 0.2s; }
 
 /* ===== Prevent table cell content from wrapping (use horizontal scroll for overflow) ===== */
 :deep(.el-table .cell) {

@@ -73,36 +73,50 @@ export function deviceTypeLabel(val) {
  *   网络设备类 → 🌐 / 具体设备有专属 emoji
  *   安全设备类 → 🛡
  *   其他软件类 → 🧩
+ *
+ * themeColor 按 3 大类单色兜底（即使 emoji 渲染失败也有色彩提示）：
+ *   - 网络设备类：#409eff 蓝
+ *   - 安全设备类：#f56c6c 红
+ *   - 其他软件类：#909399 灰
+ *
+ * 图标来源优先级（模板渲染时）：
+ *   1. icon（PNG/SVG 路径，用户在图标库上传并在此配置）
+ *   2. emoji（兜底）
+ *   3. themeColor 色块（最底兜底）
  */
+const NETWORK_COLOR = '#409eff'
+const SECURITY_COLOR = '#f56c6c'
+const SOFTWARE_COLOR = '#909399'
+
 export const DEVICE_TYPE_ICON = {
   // 网络设备类
-  switch: { emoji: '🔀' },
-  router: { emoji: '📡' },
-  hub: { emoji: '🔌' },
-  other: { emoji: '📦' },
+  switch: { emoji: '🔀', themeColor: NETWORK_COLOR },
+  router: { emoji: '📡', themeColor: NETWORK_COLOR },
+  hub: { emoji: '🔌', themeColor: NETWORK_COLOR },
+  other: { emoji: '📦', themeColor: NETWORK_COLOR },
   // 安全设备类
-  firewall: { emoji: '🛡' },
-  internet_behavior: { emoji: '🚦' },
-  bastion: { emoji: '🔐' },
-  ips: { emoji: '🛡' },
-  ids: { emoji: '🔍' },
-  ddos: { emoji: '🌊' },
-  vpn: { emoji: '🔗' },
-  antivirus: { emoji: '🦠' },
+  firewall: { emoji: '🛡', themeColor: SECURITY_COLOR },
+  internet_behavior: { emoji: '🚦', themeColor: SECURITY_COLOR },
+  bastion: { emoji: '🔐', themeColor: SECURITY_COLOR },
+  ips: { emoji: '🛡', themeColor: SECURITY_COLOR },
+  ids: { emoji: '🔍', themeColor: SECURITY_COLOR },
+  ddos: { emoji: '🌊', themeColor: SECURITY_COLOR },
+  vpn: { emoji: '🔗', themeColor: SECURITY_COLOR },
+  antivirus: { emoji: '🦠', themeColor: SECURITY_COLOR },
   // 其他软件类
-  admission: { emoji: '🧩' },
-  auth: { emoji: '🔑' },
-  nms: { emoji: '🛰' },
-  database: { emoji: '🗄' },
-  ops_audit: { emoji: '📋' },
-  api_gateway: { emoji: '🔁' },
+  admission: { emoji: '🧩', themeColor: SOFTWARE_COLOR },
+  auth: { emoji: '🔑', themeColor: SOFTWARE_COLOR },
+  nms: { emoji: '🛰', themeColor: SOFTWARE_COLOR },
+  database: { emoji: '🗄', themeColor: SOFTWARE_COLOR },
+  ops_audit: { emoji: '📋', themeColor: SOFTWARE_COLOR },
+  api_gateway: { emoji: '🔁', themeColor: SOFTWARE_COLOR },
   // 临时 / 未知类型的占位（用户后续可补充具体图标）
-  custom: { emoji: '❔' },
+  custom: { emoji: '❔', themeColor: '#c0c4cc' },
 }
 
 export function getDeviceTypeIcon(val) {
-  if (!val) return { emoji: '❔' }
-  return DEVICE_TYPE_ICON[val] || { emoji: '❔' }
+  if (!val) return { emoji: '❔', themeColor: '#c0c4cc' }
+  return DEVICE_TYPE_ICON[val] || { emoji: '❔', themeColor: '#c0c4cc' }
 }
 
 /**

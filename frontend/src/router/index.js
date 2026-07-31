@@ -121,6 +121,12 @@ const routes = [
             component: () => import('@/views/system/fields/index.vue'),
             meta: { title: '字段管理', icon: 'Files', adminOnly: true },
           },
+          {
+            path: 'icons',
+            name: 'SystemIcons',
+            component: () => import('@/views/system/icons/index.vue'),
+            meta: { title: '图标管理', icon: 'Picture', adminOnly: true },
+          },
         ],
       },
     ],

@@ -98,6 +98,10 @@
             <el-icon><Files /></el-icon>
             <template #title>字段管理</template>
           </el-menu-item>
+          <el-menu-item v-if="userStore.isAdmin" index="/system/icons">
+            <el-icon><Picture /></el-icon>
+            <template #title>图标管理</template>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -151,7 +155,7 @@ import { useAppStore } from '@/stores/app'
 import { ElMessageBox } from 'element-plus'
 import {
   Monitor, DataAnalysis, Connection, Position, Key, Share, Grid, Tickets,
-  Lock, Setting, User, UserFilled, Memo, EditPen, HomeFilled, Files,
+  Lock, Setting, User, UserFilled, Memo, EditPen, HomeFilled, Files, Picture,
   Fold, Expand, SwitchButton,
 } from '@element-plus/icons-vue'
 

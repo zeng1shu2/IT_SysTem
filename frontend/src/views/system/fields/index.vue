@@ -90,8 +90,19 @@
         <el-form-item label="排序">
           <el-input-number v-model="form.sort" :min="0" :max="999" />
         </el-form-item>
-        <el-form-item label="图标路径">
-          <el-input v-model="form.icon" placeholder="如 /brand-icons/huawei.png（与 emoji 二选一）" />
+        <el-form-item label="图标">
+          <div class="icon-picker-row">
+            <div class="icon-preview-box">
+              <img v-if="form.icon" :src="form.icon" alt="" />
+              <span v-else-if="form.emoji" class="opt-emoji">{{ form.emoji }}</span>
+              <span v-else class="text-muted">—</span>
+            </div>
+            <el-input v-model="form.icon" placeholder="/icons/... 或其他路径" style="flex: 1" />
+            <el-button @click="openIconPicker">
+              <el-icon><Picture /></el-icon> 从图标库选
+            </el-button>
+            <el-button v-if="form.icon" link type="danger" @click="form.icon = ''">清除</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="Emoji">
           <el-input v-model="form.emoji" placeholder="如 📡（与图标路径二选一）" maxlength="4" style="width: 160px" />
@@ -105,16 +116,44 @@
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- Icon picker dialog (从图标库选图标) -->
+    <el-dialog v-model="iconPickerVisible" title="从图标库选择" width="720px" @open="loadIconLibrary">
+      <div class="picker-toolbar">
+        <el-input v-model="pickerKeyword" placeholder="搜索图标" clearable style="width: 200px">
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <el-select v-model="pickerCategory" placeholder="全部分类" clearable style="width: 140px">
+          <el-option v-for="c in ICON_CATEGORIES" :key="c.value" :label="c.label" :value="c.value" />
+        </el-select>
+      </div>
+      <div v-if="pickerItems.length === 0" class="picker-empty">
+        <el-empty description="图标库为空，请先到「系统管理 → 图标管理」上传" />
+      </div>
+      <div v-else class="picker-grid">
+        <div
+          v-for="icon in pickerItems"
+          :key="icon.id"
+          class="picker-tile"
+          :class="{ selected: form.icon === icon.path }"
+          @click="pickIcon(icon)"
+        >
+          <img :src="icon.path" :alt="icon.name" />
+          <span class="picker-name">{{ icon.name }}</span>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Collection } from '@element-plus/icons-vue'
+import { Plus, Collection, Search, Picture } from '@element-plus/icons-vue'
 import {
   FIELD_GROUPS, listSystemFields, createSystemField, updateSystemField, deleteSystemField,
 } from '@/api/system-field'
+import { listIcons, ICON_CATEGORIES } from '@/api/icon'
 
 const groups = FIELD_GROUPS
 const currentGroup = ref(FIELD_GROUPS[0].code)
@@ -256,6 +295,35 @@ async function handleDelete(row) {
   loadGroup()
 }
 
+// ===== Icon picker =====
+const iconPickerVisible = ref(false)
+const pickerKeyword = ref('')
+const pickerCategory = ref('')
+const pickerItems = ref([])
+
+async function loadIconLibrary() {
+  try {
+    const res = await listIcons({
+      keyword: pickerKeyword.value || undefined,
+      category: pickerCategory.value || undefined,
+    })
+    pickerItems.value = res.items || []
+  } catch (err) {
+    ElMessage.error('加载图标库失败: ' + (err?.message || '未知错误'))
+    pickerItems.value = []
+  }
+}
+
+function openIconPicker() {
+  iconPickerVisible.value = true
+}
+
+function pickIcon(icon) {
+  form.icon = icon.path
+  iconPickerVisible.value = false
+  ElMessage.success(`已选择: ${icon.name}`)
+}
+
 onMounted(loadGroup)
 </script>
 
@@ -270,4 +338,80 @@ onMounted(loadGroup)
 .opt-icon { width: 22px; height: 22px; object-fit: contain; border-radius: 4px; }
 .opt-emoji { font-size: 18px; }
 .text-muted { color: var(--el-text-color-secondary); }
+
+/* Icon picker row inside the form */
+.icon-picker-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.icon-preview-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-blank);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.icon-preview-box img {
+  max-width: 80%;
+  max-height: 80%;
+  object-fit: contain;
+}
+
+/* Icon picker dialog */
+.picker-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.picker-empty {
+  padding: 20px 0;
+}
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.picker-tile {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--el-bg-color);
+}
+.picker-tile:hover {
+  border-color: var(--el-color-primary);
+  transform: translateY(-2px);
+}
+.picker-tile.selected {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+.picker-tile img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+.picker-name {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
 </style>
