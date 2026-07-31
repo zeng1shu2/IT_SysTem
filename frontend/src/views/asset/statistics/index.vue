@@ -40,7 +40,7 @@
       <!-- Left: Table -->
       <el-card shadow="never" class="table-card" :class="{ 'with-preview': selectedRow }">
         <div class="table-header">
-          <span class="table-title">网络设备列表</span>
+          <span class="table-title">设备列表</span>
           <div class="table-header-actions">
             <el-popover placement="bottom-end" :width="180" trigger="click">
               <template #reference>
@@ -90,7 +90,7 @@
           @row-click="handleRowClick"
           @row-dblclick="handleDetail"
         >
-          <el-table-column v-if="isColumnVisible('id')" prop="id" label="ID" width="70" sortable="custom" />
+          <el-table-column type="index" label="序号" width="70" />
           <el-table-column v-if="isColumnVisible('organization')" label="组织" width="120" show-overflow-tooltip>
             <template #default="{ row }">
               <span>{{ resolveOptionLabel(organizationOptions, row.organization) }}</span>
@@ -181,7 +181,7 @@
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.size"
           :total="pagination.total"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[15, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           class="pagination"
           @size-change="fetchData"
@@ -445,7 +445,7 @@ const statusOptions = [
 ]
 
 const searchForm = reactive({ keyword: '', device_type: '', status: '', organization: '' })
-const pagination = reactive({ page: 1, size: 20, total: 0 })
+const pagination = reactive({ page: 1, size: 15, total: 0 })
 
 // ID 排序：desc(倒序，默认) / asc(正序)
 const sortState = ref('desc')
@@ -521,7 +521,7 @@ const coreTableColumns = [
 
 // Default visible column props
 const defaultVisibleColumns = [
-  'id', 'organization', 'device_name', 'device_type', 'brand', 'model',
+  'organization', 'device_name', 'device_type', 'brand', 'model',
   'ip_address', 'vlan_range', 'location', 'cabinet_u', 'status',
 ]
 
