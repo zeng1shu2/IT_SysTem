@@ -28,11 +28,12 @@
       </el-form>
     </el-card>
 
-    <el-card shadow="never">
+    <el-card class="table-card" shadow="never">
       <div class="table-header">
         <span class="table-title">审计日志</span>
       </div>
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <div class="table-area" ref="tableAreaRef">
+      <el-table :data="tableData" v-loading="loading" border stripe :height="tableHeight">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="operator" label="操作人" width="120" />
         <el-table-column prop="operator_ip" label="操作IP" width="140" />
@@ -55,11 +56,12 @@
         </el-table-column>
         <el-table-column prop="detail" label="变更详情" min-width="250" show-overflow-tooltip />
       </el-table>
+      </div>
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.size"
         :total="pagination.total"
-        :page-sizes="[20, 50, 100]"
+        :page-sizes="[10, 15, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pagination"
         @size-change="fetchData"
@@ -72,6 +74,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { getAuditLogs } from '@/api/audit'
+import { useTableHeight } from '@/composables/useTableHeight'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -89,7 +92,9 @@ const targetTypes = [
 ]
 
 const searchForm = reactive({ operator: '', operation_type: '', target_type: '', result: undefined })
-const pagination = reactive({ page: 1, size: 20, total: 0 })
+const pagination = reactive({ page: 1, size: 15, total: 0 })
+const tableAreaRef = ref(null)
+const { tableHeight } = useTableHeight(tableAreaRef)
 
 function formatTime(t) { return t ? new Date(t).toLocaleString('zh-CN') : '-' }
 function opTypeLabel(v) { return opTypes.find((t) => t.value === v)?.label || v }
@@ -127,9 +132,4 @@ onMounted(fetchData)
 </script>
 
 <style scoped>
-.page-container { display: flex; flex-direction: column; gap: 16px; }
-.search-card :deep(.el-card__body) { padding: 18px 20px 0 20px; }
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.table-title { font-size: 16px; font-weight: 600; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
 </style>

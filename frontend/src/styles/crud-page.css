@@ -1,0 +1,119 @@
+/* ============================================================
+ * Shared list-page layout styles (extracted, single source of truth)
+ * Reference design: asset/statistics page.
+ * Applied globally so every CRUD / list page shares identical
+ * card + header + pagination styling. Edit here to retheme all
+ * pages at once.
+ *   - asset/statistics, CrudTablePage (license / external-broadband /
+ *     ip-plan / ip-allocation), port-connection, interconnect-ip,
+ *     system/user, system/role, system/audit, permission
+ * (These pages keep only their page-specific styles in <style scoped>;
+ *  the shared classes below are intentionally NOT redefined there.)
+ * ============================================================ */
+
+/* Page / CRUD container */
+.page-container,
+.crud-page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Fill the layout content area so the page itself never scrolls;
+     only the table body (inside .table-area) scrolls internally. */
+  height: 100%;
+}
+
+/* Search card: stand-alone card above the content table (port-connection style) */
+.search-card .el-card__body {
+  padding: 12px 20px 0;
+}
+
+/* Main split layout (table + quick-preview side panel) */
+.main-split {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+.table-card {
+  flex: 1;
+  min-width: 0;
+  transition: flex 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+/* Let the table-card body stretch and let the table area fill remaining space */
+.table-card .el-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 20px 10px;
+}
+/* The measured region that feeds <el-table :height>; scrolls internally */
+.table-area {
+  flex: 1;
+  min-height: 0;
+}
+.table-card.with-preview {
+  flex: 1 1 calc(100% - 340px);
+}
+.quick-preview-card {
+  flex: 0 0 320px;
+  max-width: 320px;
+  position: sticky;
+  top: 16px;
+}
+
+/* Table header (title + actions) */
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.table-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.table-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Pagination */
+.pagination {
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+/* Muted text utility */
+.text-muted {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+/* Column-settings popover */
+.col-settings { padding: 4px 0; }
+.col-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  font-size: 14px;
+  font-weight: 600;
+}
+.col-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.col-settings-list .el-checkbox {
+  margin-right: 0;
+  height: auto;
+}

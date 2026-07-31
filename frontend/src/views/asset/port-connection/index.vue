@@ -14,14 +14,15 @@
     </el-card>
 
     <!-- Table -->
-    <el-card shadow="never">
+    <el-card class="table-card" shadow="never">
       <div class="table-header">
         <span class="table-title">端口互联</span>
         <el-button v-if="userStore.isAdmin" type="primary" @click="handleAdd">
           <el-icon><Plus /></el-icon> 新增
         </el-button>
       </div>
-      <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%" @row-dblclick="handleDetail">
+      <div class="table-area" ref="tableAreaRef">
+      <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%" :height="tableHeight" @row-dblclick="handleDetail">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column label="设备名称" min-width="160">
           <template #default="{ row }">
@@ -62,11 +63,12 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.size"
         :total="pagination.total"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="[10, 15, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         class="pagination"
         @size-change="fetchData"
@@ -210,7 +212,7 @@
               v-model:current-page="detailPortCurrentPage"
               v-model:page-size="detailPortPageSize"
               :total="detailData.ports_data.length"
-              :page-sizes="[10, 20, 50, 100]"
+              :page-sizes="[10, 15, 20, 50, 100]"
               layout="total, sizes, prev, pager, next"
               background
               size="small"
@@ -521,7 +523,7 @@
             v-model:current-page="portCurrentPage"
             v-model:page-size="portPageSize"
             :total="filteredPorts.length"
-            :page-sizes="[10, 20, 50, 100]"
+            :page-sizes="[10, 15, 20, 50, 100]"
             layout="total, sizes, prev, pager, next"
             background
             size="small"
@@ -542,6 +544,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { useTableHeight } from '@/composables/useTableHeight'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -555,7 +558,11 @@ const loading = ref(false)
 const submitting = ref(false)
 const tableData = ref([])
 const searchKeyword = ref('')
-const pagination = reactive({ page: 1, size: 20, total: 0 })
+const pagination = reactive({ page: 1, size: 15, total: 0 })
+
+// 表格区域高度（填满视口，表格内部滚动，整页不下拉）
+const tableAreaRef = ref(null)
+const { tableHeight } = useTableHeight(tableAreaRef)
 
 const dialogVisible = ref(false)
 const editingId = ref(null)
@@ -1055,12 +1062,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-container { display: flex; flex-direction: column; gap: 16px; }
-.search-card :deep(.el-card__body) { padding: 18px 20px 0 20px; }
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.table-title { font-size: 16px; font-weight: 600; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
-.text-muted { color: var(--el-text-color-secondary); font-size: 13px; }
 .port-count-tag { margin-left: 12px; }
 .hint-text { margin-left: 12px; font-size: 12px; color: var(--el-text-color-secondary); }
 .sc-hint-mini { font-size: 11px; color: var(--el-color-success); line-height: 1.3; margin-top: 2px; }

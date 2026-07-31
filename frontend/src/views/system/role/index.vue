@@ -1,11 +1,12 @@
 <template>
   <div class="page-container">
-    <el-card shadow="never">
+    <el-card class="table-card" shadow="never">
       <div class="table-header">
         <span class="table-title">角色列表</span>
         <el-button type="primary" @click="handleAdd"><el-icon><Plus /></el-icon> 新增角色</el-button>
       </div>
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <div class="table-area" ref="tableAreaRef">
+      <el-table :data="tableData" v-loading="loading" border stripe :height="tableHeight">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="角色名称" width="140" />
         <el-table-column prop="code" label="角色编码" width="140" />
@@ -25,11 +26,12 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.size"
         :total="pagination.total"
-        :page-sizes="[10, 20, 50]"
+        :page-sizes="[10, 15, 20, 50, 100]"
         layout="total, prev, pager, next"
         class="pagination"
         @size-change="fetchData"
@@ -60,6 +62,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRoles, createRole, updateRole, deleteRole } from '@/api/role'
+import { useTableHeight } from '@/composables/useTableHeight'
 import { getPermissionCatalog } from '@/api/permission'
 
 const loading = ref(false)
@@ -70,7 +73,9 @@ const editingId = ref(null)
 const formRef = ref()
 const permissionCatalog = ref([])
 
-const pagination = reactive({ page: 1, size: 20, total: 0 })
+const pagination = reactive({ page: 1, size: 15, total: 0 })
+const tableAreaRef = ref(null)
+const { tableHeight } = useTableHeight(tableAreaRef)
 const defaultForm = { name: '', code: '', description: '', permissions: [] }
 const formData = reactive({ ...defaultForm })
 
@@ -149,9 +154,5 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-container { display: flex; flex-direction: column; gap: 16px; }
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.table-title { font-size: 16px; font-weight: 600; }
 .perm-tag { margin: 2px; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
 </style>

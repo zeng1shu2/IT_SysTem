@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <!-- Search bar -->
+    <!-- Search card (standalone, separated from the content table) -->
     <el-card class="search-card" shadow="never">
       <el-form :inline="true" :model="searchForm" @submit.prevent>
         <el-form-item label="关键词">
@@ -78,6 +78,7 @@
             </el-button>
           </div>
         </div>
+        <div class="table-area" ref="tableAreaRef">
         <el-table
           :data="tableData"
           v-loading="loading"
@@ -85,6 +86,7 @@
           stripe
           highlight-current-row
           style="width: 100%"
+          :height="tableHeight"
           :default-sort="{ prop: 'id', order: 'descending' }"
           @sort-change="handleSortChange"
           @row-click="handleRowClick"
@@ -177,11 +179,12 @@
             </template>
           </el-table-column>
         </el-table>
+        </div>
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.size"
           :total="pagination.total"
-          :page-sizes="[15, 50, 100]"
+          :page-sizes="[10, 15, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           class="pagination"
           @size-change="fetchData"
@@ -390,12 +393,14 @@
         <el-button type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
       </template>
     </el-drawer>
+
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useTableHeight } from '@/composables/useTableHeight'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search, Plus, View, Close, Calendar, Timer, InfoFilled,
@@ -419,7 +424,7 @@ const dialogVisible = ref(false)
 const editingId = ref(null)
 const schemaFormRef = ref()
 
-// ===== Schema state =====
+// ===== Schema state (drives dynamic columns + detail/preview + edit form) =====
 const formSchema = ref(defaultAssetFormSchema)
 const schemaLoading = ref(false)
 const schemaSource = ref('default') // 'backend' or 'default'
@@ -430,6 +435,14 @@ const detailData = ref(null)
 
 // ===== Quick preview state =====
 const selectedRow = ref(null)
+
+// ===== Add/Edit form state =====
+const formData = reactive({})
+function onFormUpdate(val) {
+  Object.keys(val).forEach((key) => {
+    formData[key] = val[key]
+  })
+}
 
 const deviceTypes = ref(DEVICE_CATEGORY_TREE)
 const dynamicDeviceTypeLabelMap = ref({})
@@ -447,20 +460,14 @@ const statusOptions = [
 const searchForm = reactive({ keyword: '', device_type: '', status: '', organization: '' })
 const pagination = reactive({ page: 1, size: 15, total: 0 })
 
+// 表格区域高度（填满视口，表格内部滚动，整页不下拉）
+const tableAreaRef = ref(null)
+const { tableHeight } = useTableHeight(tableAreaRef)
+
 // ID 排序：desc(倒序，默认) / asc(正序)
 const sortState = ref('desc')
 
-// ===== Form data (driven by schema) =====
-const formData = reactive({})
-
-// Handle form updates from SchemaFormRenderer (mutate reactive props instead of reassign)
-function onFormUpdate(val) {
-  Object.keys(val).forEach((key) => {
-    formData[key] = val[key]
-  })
-}
-
-// ===== Load schema from backend =====
+// ===== Load schema from backend (drives dynamic columns + detail/preview + edit form) =====
 async function loadFormSchema() {
   schemaLoading.value = true
   try {
@@ -927,26 +934,15 @@ async function loadLocationOptions() {
 </script>
 
 <style scoped>
-.page-container { display: flex; flex-direction: column; gap: 16px; }
-.search-card :deep(.el-card__body) { padding: 18px 20px 0 20px; }
 
 /* ===== Main Split Layout ===== */
-.main-split { display: flex; gap: 16px; align-items: flex-start; }
-.table-card { flex: 1; min-width: 0; transition: flex 0.3s ease; }
-.table-card.with-preview { flex: 1 1 calc(100% - 340px); }
-.quick-preview-card { flex: 0 0 320px; max-width: 320px; position: sticky; top: 16px; }
 
 /* ===== Table Header ===== */
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.table-title { font-size: 16px; font-weight: 600; }
-.table-header-actions { display: flex; align-items: center; gap: 12px; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
 
 /* ===== Table Cell Styles ===== */
 .device-name-cell { display: flex; align-items: center; gap: 6px; }
 .device-emoji { font-size: 16px; }
 .ip-text { font-family: 'Courier New', monospace; font-weight: 500; color: var(--el-color-primary); }
-.text-muted { color: var(--el-text-color-secondary); font-size: 13px; }
 .mono-text { font-family: 'Courier New', monospace; font-size: 13px; }
 
 /* ===== Quick Preview Panel ===== */
@@ -1036,8 +1032,4 @@ async function loadLocationOptions() {
 }
 
 /* ===== Column Settings Popover ===== */
-.col-settings { padding: 4px 0; }
-.col-settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--el-border-color-lighter); font-size: 14px; font-weight: 600; }
-.col-settings-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
-.col-settings-list :deep(.el-checkbox) { margin-right: 0; height: auto; }
 </style>

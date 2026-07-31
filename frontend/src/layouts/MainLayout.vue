@@ -243,7 +243,7 @@ async function handleCommand(command) {
 
 .main-content {
   background-color: #f0f2f5;
-  padding: 20px;
+  padding: 15px;
   overflow-y: auto;
 }
 </style>

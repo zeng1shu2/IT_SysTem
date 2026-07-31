@@ -20,12 +20,13 @@
     </el-card>
 
     <!-- Request history -->
-    <el-card shadow="never">
+    <el-card class="table-card" shadow="never">
       <div class="table-header">
         <span class="table-title">申请记录</span>
         <el-button @click="fetchRequests"><el-icon><Refresh /></el-icon> 刷新</el-button>
       </div>
-      <el-table :data="requestList" v-loading="loading" border stripe>
+      <div class="table-area" ref="tableAreaRef">
+      <el-table :data="requestList" v-loading="loading" border stripe :height="tableHeight">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="username" label="申请人" width="120" />
         <el-table-column prop="permission_code" label="权限编码" width="140" />
@@ -45,11 +46,12 @@
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
       </el-table>
+      </div>
       <el-pagination
         v-model:current-page="pagination.page"
         v-model:page-size="pagination.size"
         :total="pagination.total"
-        :page-sizes="[10, 20, 50]"
+        :page-sizes="[10, 15, 20, 50, 100]"
         layout="total, prev, pager, next"
         class="pagination"
         @size-change="fetchRequests"
@@ -84,6 +86,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getPermissionCatalog, getPermissionRequests, applyPermission } from '@/api/permission'
+import { useTableHeight } from '@/composables/useTableHeight'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -91,7 +94,9 @@ const catalog = ref([])
 const requestList = ref([])
 const applyDialog = ref(false)
 const formRef = ref()
-const pagination = reactive({ page: 1, size: 20, total: 0 })
+const pagination = reactive({ page: 1, size: 15, total: 0 })
+const tableAreaRef = ref(null)
+const { tableHeight } = useTableHeight(tableAreaRef)
 
 const applyForm = reactive({ permission_code: '', reason: '' })
 const applyRules = {
@@ -150,12 +155,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-container { display: flex; flex-direction: column; gap: 16px; }
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.table-title { font-size: 16px; font-weight: 600; }
 .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .perm-card { cursor: default; }
 .perm-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
 .perm-desc { font-size: 12px; color: #909399; margin-bottom: 8px; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
 </style>

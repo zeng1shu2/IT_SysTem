@@ -49,6 +49,7 @@
           </div>
         </div>
 
+        <div class="table-area" ref="tableAreaRef">
         <el-table
           :data="tableData"
           v-loading="loading"
@@ -56,6 +57,7 @@
           stripe
           highlight-current-row
           style="width: 100%"
+          :height="tableHeight"
           :default-sort="{ prop: 'id', order: 'descending' }"
           @sort-change="handleSortChange"
           @row-click="handleRowClick"
@@ -118,12 +120,13 @@
             </template>
           </el-table-column>
         </el-table>
+        </div>
 
         <el-pagination
           v-model:current-page="pagination.page"
           v-model:page-size="pagination.size"
           :total="pagination.total"
-          :page-sizes="[10, 20, 50, 100]"
+          :page-sizes="[10, 15, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           class="pagination"
           @size-change="fetchData"
@@ -208,6 +211,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useTableHeight } from '@/composables/useTableHeight'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, View, Close, Operation, Loading } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -239,6 +243,10 @@ const schemaFormRef = ref()
 const searchKeyword = ref('')
 const searchForm = reactive({})
 
+// 表格区域高度（填满视口，表格内部滚动，整页不下拉）
+const tableAreaRef = ref(null)
+const { tableHeight } = useTableHeight(tableAreaRef)
+
 // Schema state
 const formSchema = ref(props.defaultSchema)
 const schemaLoading = ref(false)
@@ -248,7 +256,7 @@ const detailVisible = ref(false)
 const detailData = ref(null)
 const selectedRow = ref(null)
 
-const pagination = reactive({ page: 1, size: 20, total: 0 })
+const pagination = reactive({ page: 1, size: 15, total: 0 })
 const formData = reactive({})
 
 // ID 排序状态：desc(倒序，默认) / asc(正序)
@@ -596,17 +604,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.crud-page-container { display: flex; flex-direction: column; gap: 16px; }
-.search-card :deep(.el-card__body) { padding: 18px 20px 0 20px; }
-.main-split { display: flex; gap: 16px; align-items: flex-start; }
-.table-card { flex: 1; min-width: 0; transition: flex 0.3s ease; }
-.table-card.with-preview { flex: 1 1 calc(100% - 340px); }
-.quick-preview-card { flex: 0 0 320px; max-width: 320px; position: sticky; top: 16px; }
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.table-title { font-size: 16px; font-weight: 600; }
-.table-header-actions { display: flex; align-items: center; gap: 12px; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
-.text-muted { color: var(--el-text-color-secondary); font-size: 13px; }
 .qp-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; }
 .qp-header span { display: flex; align-items: center; gap: 6px; }
 .qp-body { display: flex; flex-direction: column; gap: 14px; }
@@ -623,10 +620,6 @@ onMounted(() => {
 .detail-actions { display: flex; gap: 10px; padding-top: 8px; }
 .schema-loading { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 60px 0; color: var(--el-text-color-secondary); font-size: 14px; }
 .schema-loading .is-loading { font-size: 20px; }
-.col-settings { padding: 4px 0; }
-.col-settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--el-border-color-lighter); font-size: 14px; font-weight: 600; }
-.col-settings-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
-.col-settings-list :deep(.el-checkbox) { margin-right: 0; height: auto; }
 :deep(.el-table__row) { cursor: pointer; }
 
 /* ===== Prevent table cell content from wrapping (use horizontal scroll for overflow) ===== */
