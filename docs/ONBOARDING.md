@@ -85,11 +85,18 @@ npm run dev
 
 ## 5. 协作规范（重要，避免冲突）
 
-### 5.1 分支模型
-- `master`：**稳定/发版分支，受保护**，禁止直接 push，必须走 PR/MR。
-- `develop`：**日常集成分支**，两人都从它拉功能分支、合回它。
-- 功能分支命名：`feature/<模块>-<页面>`，例如 `feature/asset-stack-config`。
-- 流程：从 `develop` 拉分支 → 开发 → 提 PR 到 `develop` → 评审合并 → 稳定后 `develop` 合 `master`。
+### 5.1 分支模型（主开发者集成制）
+本项目采用「主开发者集成」模式：**A 为主开发、B 为副开发**。
+
+- `master`：**稳定/发版分支，受保护**，禁止直接 push，必须走 PR。当 A 在 develop 完成并做最终优化后，提 `develop → master` 的 PR 合入，即为官方正式版。
+- `develop`（= dev-A，A 的分支）：**主开发 + 集成分支**。A 的日常开发在此进行，并负责接收 B 的合并（A 即审核人）。
+- `dev-B`（B 的分支）：**副开发者 B 的长期分支**，从 `develop` 拉出。B 在此开发，功能完成即 PR 合回 `develop`。
+
+- 流程：B `git checkout -b dev-B origin/develop` → 开发 → 提 PR（dev-B → develop）→ A 评审合并 → 稳定后 A 提 PR（develop → master）。
+- 关键习惯（避免冲突）：
+  1. B **每完成一个小功能就合并到 develop**，不要憋到最后一次性大合并——两根长期分支时间越久越分叉，冲突会累积成山；
+  2. B 定期 `git rebase develop` 把 dev-B 跟 develop 同步，避免落后太多。
+- 功能分支命名（如需更细拆分）：`feature/<模块>-<页面>`，例如 `feature/asset-stack-config`，从 `develop` 拉取。
 
 ### 5.2 共享文件（改动需知会对方，避免冲突）
 - `frontend/src/constants/columnWidths.js`：**列宽唯一来源**，任何列表列宽调整都改这里。
