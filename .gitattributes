@@ -1,0 +1,16 @@
+# 统一换行符，避免 Windows / macOS / Linux 协作时整文件出现无意义冲突
+# text=auto：仓库内统一以 LF 存储，检出时按各平台原生换行（Windows 为 CRLF，macOS/Linux 为 LF）
+* text=auto
+
+# 二进制资源，禁止按文本处理（避免图标损坏 / 误报差异）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.db binary
+*.sqlite3 binary
