@@ -36,6 +36,7 @@ def list_audit_logs(
         query = query.filter(AuditLog.result == result)
 
     total = query.count()
+    # 默认按操作时间倒序展示（最新操作在前），不开放正倒序切换
     logs = query.order_by(AuditLog.operation_time.desc()).offset(skip).limit(limit).all()
 
     return AuditLogListResponse(

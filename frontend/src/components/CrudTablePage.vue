@@ -58,20 +58,19 @@
           highlight-current-row
           style="width: 100%"
           :height="tableHeight"
-          :default-sort="{ prop: 'id', order: 'descending' }"
+          :default-sort="{ prop: 'id', order: 'ascending' }"
           @sort-change="handleSortChange"
           @row-click="handleRowClick"
           @row-dblclick="handleDetail"
         >
-          <el-table-column v-if="isColumnVisible('id')" prop="id" label="ID" width="70" sortable="custom" />
+          <IdColumn :visible="isColumnVisible('id')" />
           <!-- Core columns from props -->
           <el-table-column
             v-for="col in visibleCoreColumns"
             :key="col.prop"
             :prop="col.prop"
             :label="col.label"
-            :width="col.width"
-            :min-width="col.minWidth || 120"
+            :min-width="colWidth(col.prop, col.minWidth || 140)"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -100,19 +99,19 @@
             v-for="field in visibleDynamicFields"
             :key="field.prop"
             :label="field.label"
-            :min-width="120"
+            :min-width="colWidth(field.prop, 140)"
             show-overflow-tooltip
           >
             <template #default="{ row }">
               <span>{{ formatFieldValue(row, field) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('created_at')" prop="created_at" label="创建时间" width="160">
+          <el-table-column v-if="isColumnVisible('created_at')" prop="created_at" label="创建时间" :min-width="colWidth('created_at', 170)">
             <template #default="{ row }">
               <span class="text-muted">{{ formatDateTime(row.created_at) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
+          <el-table-column label="操作" :min-width="colWidth('operation', 180)" fixed="right">
             <template #default="{ row }">
               <el-button size="small" type="primary" link @click.stop="handleDetail(row)">查看</el-button>
               <el-button v-if="userStore.isAdmin" size="small" link @click.stop="handleEdit(row)">编辑</el-button>
@@ -218,6 +217,8 @@ import { useUserStore } from '@/stores/user'
 import { getFormConfigByCode } from '@/api/form_config'
 import { resolveSystemFieldOptions } from '@/api/system-field'
 import SchemaFormRenderer from '@/components/SchemaFormRenderer.vue'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const props = defineProps({
   api: { type: Object, required: true }, // { list, get, create, update, delete }
@@ -260,7 +261,7 @@ const pagination = reactive({ page: 1, size: 15, total: 0 })
 const formData = reactive({})
 
 // ID 排序状态：desc(倒序，默认) / asc(正序)
-const sortState = ref('desc')
+const sortState = ref('asc')
 
 function onFormUpdate(val) {
   Object.keys(val).forEach((key) => { formData[key] = val[key] })

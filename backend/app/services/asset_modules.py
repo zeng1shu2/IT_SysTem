@@ -34,9 +34,7 @@ class GenericCRUDService:
                 if hasattr(self.model, key):
                     query = query.filter(getattr(self.model, key) == val)
         total = query.count()
-        order_col = self.model.id.desc() if order == "asc" else self.model.id.desc()
-        if order == "asc":
-            order_col = self.model.id.asc()
+        order_col = self.model.id.asc() if order == "asc" else self.model.id.desc()
         items = query.order_by(order_col).offset(skip).limit(limit).all()
         return items, total
 

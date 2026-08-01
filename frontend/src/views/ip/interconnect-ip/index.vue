@@ -22,20 +22,20 @@
         </el-button>
       </div>
       <div class="table-area" ref="tableAreaRef">
-      <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%" :height="tableHeight" @row-dblclick="handleDetail">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="ip_range" label="IP地址范围" min-width="160" />
-        <el-table-column prop="source_device_name" label="源设备" min-width="120" />
-        <el-table-column prop="source_interface" label="源接口" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="dest_device_name" label="目的设备" min-width="120" />
-        <el-table-column prop="dest_interface" label="目的接口" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="160">
+      <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%" :height="tableHeight" :default-sort="{ prop: 'id', order: 'ascending' }" @sort-change="handleSortChange" @row-dblclick="handleDetail">
+        <IdColumn />
+        <el-table-column prop="ip_range" label="IP地址范围" :min-width="colWidth('ip_range')" show-overflow-tooltip />
+        <el-table-column prop="source_device_name" label="源设备" :min-width="colWidth('source_device_name')" show-overflow-tooltip />
+        <el-table-column prop="source_interface" label="源接口" :min-width="colWidth('source_interface')" show-overflow-tooltip />
+        <el-table-column prop="dest_device_name" label="目的设备" :min-width="colWidth('dest_device_name')" show-overflow-tooltip />
+        <el-table-column prop="dest_interface" label="目的接口" :min-width="colWidth('dest_interface')" show-overflow-tooltip />
+        <el-table-column prop="remark" label="备注" :min-width="colWidth('remark')" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" :min-width="colWidth('created_at')">
           <template #default="{ row }">
             <span class="text-muted">{{ formatDateTime(row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" :min-width="colWidth('operation')" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click.stop="handleDetail(row)">查看</el-button>
             <el-button v-if="userStore.isAdmin" size="small" link @click.stop="handleEdit(row)">编辑</el-button>
@@ -181,6 +181,8 @@ import { useUserStore } from '@/stores/user'
 import { getInterconnectIPs, getInterconnectIP, createInterconnectIP, updateInterconnectIP, deleteInterconnectIP } from '@/api/interconnect-ip'
 import { getAssets } from '@/api/asset'
 import { getPortConnections } from '@/api/port-connection'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -188,6 +190,7 @@ const submitting = ref(false)
 const tableData = ref([])
 const searchKeyword = ref('')
 const pagination = reactive({ page: 1, size: 15, total: 0 })
+const sortState = ref('asc')
 
 // 表格区域高度（填满视口，表格内部滚动，整页不下拉）
 const tableAreaRef = ref(null)
@@ -290,6 +293,7 @@ async function fetchData() {
       skip: (pagination.page - 1) * pagination.size,
       limit: pagination.size,
       keyword: searchKeyword.value || undefined,
+      order: sortState.value,
     })
     tableData.value = data.items || []
     pagination.total = data.total || 0
@@ -300,6 +304,12 @@ async function fetchData() {
   } finally {
     loading.value = false
   }
+}
+
+function handleSortChange({ prop, order }) {
+  if (prop !== 'id') return
+  sortState.value = sortState.value === 'desc' ? 'asc' : 'desc'
+  fetchData()
 }
 
 function handleSearch() {
@@ -407,4 +417,5 @@ onMounted(() => {
 :deep(.el-table) {
   overflow-x: auto;
 }
+
 </style>

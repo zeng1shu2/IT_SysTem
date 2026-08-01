@@ -37,11 +37,12 @@ def list_roles(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     keyword: str | None = Query(None),
+    order: str = Query("asc", description="ID排序: asc(正序) / desc(倒序)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get paginated role list."""
-    roles, total = get_roles(db, skip=skip, limit=limit, keyword=keyword)
+    roles, total = get_roles(db, skip=skip, limit=limit, keyword=keyword, order=order)
     return RoleListResponse(total=total, items=[_role_to_response(r, db) for r in roles])
 
 

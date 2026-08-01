@@ -34,27 +34,27 @@
       </div>
       <div class="table-area" ref="tableAreaRef">
       <el-table :data="tableData" v-loading="loading" border stripe :height="tableHeight">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="operator" label="操作人" width="120" />
-        <el-table-column prop="operator_ip" label="操作IP" width="140" />
-        <el-table-column prop="operation_time" label="操作时间" width="170">
+        <IdColumn :sortable="false" />
+        <el-table-column prop="operator" label="操作人" :min-width="colWidth('operator')" show-overflow-tooltip />
+        <el-table-column prop="operator_ip" label="操作IP" :min-width="colWidth('operator_ip')" show-overflow-tooltip />
+        <el-table-column prop="operation_time" label="操作时间" :min-width="colWidth('operation_time')">
           <template #default="{ row }">{{ formatTime(row.operation_time) }}</template>
         </el-table-column>
-        <el-table-column prop="operation_type" label="操作类型" width="100">
+        <el-table-column prop="operation_type" label="操作类型" :min-width="colWidth('operation_type')">
           <template #default="{ row }">
             <el-tag :type="opTypeTag(row.operation_type)" size="small">{{ opTypeLabel(row.operation_type) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="target_type" label="对象类型" width="100">
+        <el-table-column prop="target_type" label="对象类型" :min-width="colWidth('target_type')">
           <template #default="{ row }">{{ targetTypeLabel(row.target_type) }}</template>
         </el-table-column>
-        <el-table-column prop="target_id" label="对象ID" width="80" />
-        <el-table-column prop="result" label="结果" width="80">
+        <el-table-column prop="target_id" label="对象ID" :min-width="colWidth('target_id')" />
+        <el-table-column prop="result" label="结果" :min-width="colWidth('result')">
           <template #default="{ row }">
             <el-tag :type="row.result ? 'success' : 'danger'" size="small">{{ row.result ? '成功' : '失败' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="detail" label="变更详情" min-width="250" show-overflow-tooltip />
+        <el-table-column prop="detail" label="变更详情" :min-width="colWidth('detail')" show-overflow-tooltip />
       </el-table>
       </div>
       <el-pagination
@@ -75,6 +75,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getAuditLogs } from '@/api/audit'
 import { useTableHeight } from '@/composables/useTableHeight'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const loading = ref(false)
 const tableData = ref([])

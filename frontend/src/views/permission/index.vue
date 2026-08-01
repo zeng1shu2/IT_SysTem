@@ -27,22 +27,22 @@
       </div>
       <div class="table-area" ref="tableAreaRef">
       <el-table :data="requestList" v-loading="loading" border stripe :height="tableHeight">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="username" label="申请人" width="120" />
-        <el-table-column prop="permission_code" label="权限编码" width="140" />
-        <el-table-column prop="reason" label="申请理由" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="90">
+        <IdColumn :sortable="false" />
+        <el-table-column prop="username" label="申请人" :min-width="colWidth('applicant')" show-overflow-tooltip />
+        <el-table-column prop="permission_code" label="权限编码" :min-width="colWidth('permission_code')" show-overflow-tooltip />
+        <el-table-column prop="reason" label="申请理由" :min-width="colWidth('reason')" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" :min-width="colWidth('status')">
           <template #default="{ row }">
             <el-tag :type="row.status === 'approved' ? 'success' : 'danger'">
               {{ row.status === 'approved' ? '已批准' : '已拒绝' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="auto_rule" label="匹配规则" width="160" />
-        <el-table-column prop="approved_at" label="审批时间" width="170">
+        <el-table-column prop="auto_rule" label="匹配规则" :min-width="colWidth('auto_rule')" show-overflow-tooltip />
+        <el-table-column prop="approved_at" label="审批时间" :min-width="colWidth('approved_at')">
           <template #default="{ row }">{{ formatTime(row.approved_at) }}</template>
         </el-table-column>
-        <el-table-column prop="created_at" label="申请时间" width="170">
+        <el-table-column prop="created_at" label="申请时间" :min-width="colWidth('created_at')">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
       </el-table>
@@ -87,6 +87,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getPermissionCatalog, getPermissionRequests, applyPermission } from '@/api/permission'
 import { useTableHeight } from '@/composables/useTableHeight'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const loading = ref(false)
 const submitting = ref(false)

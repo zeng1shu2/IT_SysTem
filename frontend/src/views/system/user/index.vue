@@ -24,27 +24,27 @@
         <el-button type="primary" @click="handleAdd"><el-icon><Plus /></el-icon> 新增用户</el-button>
       </div>
       <div class="table-area" ref="tableAreaRef">
-      <el-table :data="tableData" v-loading="loading" border stripe :height="tableHeight">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="username" label="用户名" width="120" />
-        <el-table-column prop="real_name" label="姓名" width="100" />
-        <el-table-column prop="email" label="邮箱" min-width="160" />
-        <el-table-column prop="phone" label="手机号" width="130" />
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="is_admin" label="角色" width="80">
+      <el-table :data="tableData" v-loading="loading" border stripe :height="tableHeight" :default-sort="{ prop: 'id', order: 'ascending' }" @sort-change="handleSortChange">
+        <IdColumn />
+        <el-table-column prop="username" label="用户名" :min-width="colWidth('username')" show-overflow-tooltip />
+        <el-table-column prop="real_name" label="姓名" :min-width="colWidth('real_name')" show-overflow-tooltip />
+        <el-table-column prop="email" label="邮箱" :min-width="colWidth('email')" show-overflow-tooltip />
+        <el-table-column prop="phone" label="手机号" :min-width="colWidth('phone')" show-overflow-tooltip />
+        <el-table-column prop="department" label="部门" :min-width="colWidth('department')" show-overflow-tooltip />
+        <el-table-column prop="is_admin" label="角色" :min-width="colWidth('is_admin')">
           <template #default="{ row }">
             <el-tag :type="row.is_admin ? 'danger' : 'info'" size="small">{{ row.is_admin ? '管理员' : '普通' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="80">
+        <el-table-column prop="is_active" label="状态" :min-width="colWidth('is_active')">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'danger'" size="small">{{ row.is_active ? '启用' : '禁用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="last_login_at" label="最后登录" width="170">
+        <el-table-column prop="last_login_at" label="最后登录" :min-width="colWidth('last_login_at')">
           <template #default="{ row }">{{ formatTime(row.last_login_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" :min-width="colWidth('operation')" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" type="warning" @click="handleResetPwd(row)">重置密码</el-button>
@@ -112,6 +112,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUsers, createUser, updateUser, deleteUser, resetPassword } from '@/api/user'
 import { useTableHeight } from '@/composables/useTableHeight'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -124,6 +126,7 @@ const pwdFormRef = ref()
 
 const searchForm = reactive({ keyword: '', is_active: undefined })
 const pagination = reactive({ page: 1, size: 15, total: 0 })
+const sortState = ref('asc')
 const tableAreaRef = ref(null)
 const { tableHeight } = useTableHeight(tableAreaRef)
 
@@ -155,12 +158,19 @@ async function fetchData() {
       limit: pagination.size,
       keyword: searchForm.keyword || undefined,
       is_active: searchForm.is_active,
+      order: sortState.value,
     })
     tableData.value = data.items
     pagination.total = data.total
   } finally {
     loading.value = false
   }
+}
+
+function handleSortChange({ prop, order }) {
+  if (prop !== 'id') return
+  sortState.value = sortState.value === 'desc' ? 'asc' : 'desc'
+  fetchData()
 }
 
 function handleSearch() { pagination.page = 1; fetchData() }

@@ -87,18 +87,18 @@
           highlight-current-row
           style="width: 100%"
           :height="tableHeight"
-          :default-sort="{ prop: 'id', order: 'descending' }"
+          :default-sort="{ prop: 'id', order: 'ascending' }"
           @sort-change="handleSortChange"
           @row-click="handleRowClick"
           @row-dblclick="handleDetail"
         >
-          <el-table-column type="index" label="序号" width="70" />
-          <el-table-column v-if="isColumnVisible('organization')" label="组织" width="120" show-overflow-tooltip>
+          <IdColumn :visible="isColumnVisible('id')" />
+          <el-table-column v-if="isColumnVisible('organization')" label="组织" :min-width="colWidth('organization')" show-overflow-tooltip>
             <template #default="{ row }">
               <span>{{ resolveOptionLabel(organizationOptions, row.organization) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('device_name')" prop="device_name" label="设备名称" min-width="120">
+          <el-table-column v-if="isColumnVisible('device_name')" prop="device_name" label="设备名称" :min-width="colWidth('device_name')">
             <template #default="{ row }">
               <div class="device-name-cell">
                 <DeviceTypeIcon :val="row.device_type" size="small" />
@@ -106,70 +106,70 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('device_type')" prop="device_type" label="类型" width="100">
+          <el-table-column v-if="isColumnVisible('device_type')" prop="device_type" label="类型" :min-width="colWidth('device_type')">
             <template #default="{ row }">
               <el-tag :color="deviceTypeColor(row.device_type)" effect="dark" size="small" round>
                 {{ deviceTypeLabel(row.device_type) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('brand')" prop="brand" label="品牌" width="100" show-overflow-tooltip />
-          <el-table-column v-if="isColumnVisible('model')" prop="model" label="型号" width="120" show-overflow-tooltip />
-          <el-table-column v-if="isColumnVisible('ip_address')" prop="ip_address" label="管理IP" width="150" show-overflow-tooltip>
+          <el-table-column v-if="isColumnVisible('brand')" prop="brand" label="品牌" :min-width="colWidth('brand')" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('model')" prop="model" label="型号" :min-width="colWidth('model')" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('ip_address')" prop="ip_address" label="管理IP" :min-width="colWidth('ip_address')" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.ip_address" class="ip-text">{{ row.ip_address }}</span>
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('mac_address')" prop="mac_address" label="MAC地址" width="160" show-overflow-tooltip>
+          <el-table-column v-if="isColumnVisible('mac_address')" prop="mac_address" label="MAC地址" :min-width="colWidth('mac_address')" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.mac_address" class="mono-text">{{ row.mac_address }}</span>
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('serial_number')" prop="serial_number" label="序列号" width="140" show-overflow-tooltip />
-          <el-table-column v-if="isColumnVisible('it_asset_code')" prop="it_asset_code" label="IT资产编码" width="140" show-overflow-tooltip />
-          <el-table-column v-if="isColumnVisible('financial_asset_code')" prop="financial_asset_code" label="财务资产编码" width="140" show-overflow-tooltip />
-          <el-table-column v-if="isColumnVisible('location')" label="位置" min-width="120" show-overflow-tooltip>
+          <el-table-column v-if="isColumnVisible('serial_number')" prop="serial_number" label="序列号" :min-width="colWidth('serial_number')" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('it_asset_code')" prop="it_asset_code" label="IT资产编码" :min-width="colWidth('it_asset_code')" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('financial_asset_code')" prop="financial_asset_code" label="财务资产编码" :min-width="colWidth('financial_asset_code')" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('location')" label="位置" :min-width="colWidth('location')" show-overflow-tooltip>
             <template #default="{ row }">
               <span>{{ resolveOptionLabel(locationOptions, row.location) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('cabinet_u')" prop="cabinet_u" label="机柜U位" width="120" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('cabinet_u')" prop="cabinet_u" label="机柜U位" :min-width="colWidth('cabinet_u')" show-overflow-tooltip />
           <!-- Dynamic columns for custom fields from form designer -->
           <el-table-column
             v-for="field in visibleDynamicFields"
             :key="field.prop"
             :label="field.label"
-            :min-width="120"
+            :min-width="colWidth(field.prop, 140)"
             show-overflow-tooltip
           >
             <template #default="{ row }">
               <span>{{ formatFieldValue(row, field) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('status')" prop="status" label="状态" width="90">
+          <el-table-column v-if="isColumnVisible('status')" prop="status" label="状态" :min-width="colWidth('status')">
             <template #default="{ row }">
               <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('purchase_date')" prop="purchase_date" label="采购日期" width="120">
+          <el-table-column v-if="isColumnVisible('purchase_date')" prop="purchase_date" label="采购日期" :min-width="colWidth('purchase_date')">
             <template #default="{ row }">
               <span class="text-muted">{{ formatDate(row.purchase_date) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('warranty_expire')" prop="warranty_expire" label="保修到期" width="120">
+          <el-table-column v-if="isColumnVisible('warranty_expire')" prop="warranty_expire" label="保修到期" :min-width="colWidth('warranty_expire')">
             <template #default="{ row }">
               <span class="text-muted">{{ formatDate(row.warranty_expire) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isColumnVisible('remark')" prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-          <el-table-column v-if="isColumnVisible('created_at')" prop="created_at" label="创建时间" width="160">
+          <el-table-column v-if="isColumnVisible('remark')" prop="remark" label="备注" :min-width="colWidth('remark')" show-overflow-tooltip />
+          <el-table-column v-if="isColumnVisible('created_at')" prop="created_at" label="创建时间" :min-width="colWidth('created_at')">
             <template #default="{ row }">
               <span class="text-muted">{{ formatDateTime(row.created_at) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column label="操作" :min-width="colWidth('operation')" fixed="right">
             <template #default="{ row }">
               <el-button size="small" type="primary" link @click.stop="handleDetail(row)">
                 <el-icon><View /></el-icon> 查看
@@ -276,11 +276,11 @@
         <div v-if="detailData.extra_data?.stack_config?.enabled && (detailData.extra_data?.stack_config?.members || []).length" class="detail-remark-section">
           <div class="detail-section-title"><el-icon><Connection /></el-icon> 堆叠成员 ({{ detailData.extra_data.stack_config.members.length }} 台)</div>
           <el-table :data="detailData.extra_data.stack_config.members" border size="small">
-            <el-table-column type="index" label="#" width="50" />
-            <el-table-column prop="name" label="设备名称" min-width="150" />
-            <el-table-column prop="serial_number" label="序列号" min-width="150" />
-            <el-table-column prop="it_asset_code" label="IT资产编码" min-width="140" />
-            <el-table-column prop="financial_asset_code" label="财务资产编码" min-width="140" />
+            <el-table-column type="index" label="#" :min-width="colWidth('index')" />
+            <el-table-column prop="name" label="设备名称" :min-width="colWidth('device_name')" />
+            <el-table-column prop="serial_number" label="序列号" :min-width="colWidth('serial_number')" />
+            <el-table-column prop="it_asset_code" label="IT资产编码" :min-width="colWidth('it_asset_code')" />
+            <el-table-column prop="financial_asset_code" label="财务资产编码" :min-width="colWidth('financial_asset_code')" />
           </el-table>
         </div>
         <div class="detail-actions">
@@ -410,6 +410,8 @@ import { buildDeviceTypeIconMap } from '@/composables/deviceTypeIcons'
 import { summarizePortGroups } from '@/utils/portNaming'
 import { DEVICE_CATEGORY_TREE, DEVICE_TYPE_LABEL_MAP, getDeviceTypeIcon, deviceTypeLabel as deviceTypeLabelFn } from '@/constants/vendors'
 import { resolveSystemFieldOptions, getFieldOptions, buildDeviceTypeLabelMap } from '@/api/system-field'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -461,7 +463,7 @@ const tableAreaRef = ref(null)
 const { tableHeight } = useTableHeight(tableAreaRef)
 
 // ID 排序：desc(倒序，默认) / asc(正序)
-const sortState = ref('desc')
+const sortState = ref('asc')
 
 // ===== Load schema from backend (drives dynamic columns + detail/preview + edit form) =====
 async function loadFormSchema() {
@@ -529,7 +531,7 @@ const coreTableColumns = [
 
 // Default visible column props
 const defaultVisibleColumns = [
-  'organization', 'device_name', 'device_type', 'brand', 'model',
+  'id', 'organization', 'device_name', 'device_type', 'brand', 'model',
   'ip_address', 'vlan_range', 'location', 'cabinet_u', 'status',
 ]
 

@@ -22,9 +22,9 @@
         </el-button>
       </div>
       <div class="table-area" ref="tableAreaRef">
-      <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%" :height="tableHeight" @row-dblclick="handleDetail">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column label="设备名称" min-width="160">
+      <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%" :height="tableHeight" :default-sort="{ prop: 'id', order: 'ascending' }" @sort-change="handleSortChange" @row-dblclick="handleDetail">
+        <IdColumn />
+        <el-table-column label="设备名称" :min-width="colWidth('device_name')">
           <template #default="{ row }">
             <div class="device-name-cell">
               <DeviceTypeIcon :val="getDeviceType(row.asset_id)" size="small" />
@@ -32,8 +32,8 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="port_count" label="物理端口数" width="100" />
-        <el-table-column label="物理端口概况" min-width="180">
+        <el-table-column prop="port_count" label="物理端口数" :min-width="colWidth('port_count')" />
+        <el-table-column label="物理端口概况" :min-width="colWidth('physical_port_overview')">
           <template #default="{ row }">
             <span v-if="row.ports_data && row.ports_data.length > 0">
               {{ getPortSummary(row.ports_data) }}
@@ -41,7 +41,7 @@
             <span v-else class="text-muted">未配置</span>
           </template>
         </el-table-column>
-        <el-table-column label="逻辑接口数" width="100">
+        <el-table-column label="逻辑接口数" :min-width="colWidth('logical_port_count')">
           <template #default="{ row }">
             <span v-if="row.logical_interfaces && row.logical_interfaces.length > 0">
               {{ row.logical_interfaces.length }}
@@ -49,13 +49,13 @@
             <span v-else class="text-muted">0</span>
           </template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="160">
+        <el-table-column prop="remark" label="备注" :min-width="colWidth('remark')" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" :min-width="colWidth('created_at')">
           <template #default="{ row }">
             <span class="text-muted">{{ formatDateTime(row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" :min-width="colWidth('operation')" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click.stop="handleDetail(row)">查看</el-button>
             <el-button v-if="userStore.isAdmin" size="small" link @click.stop="handleEdit(row)">编辑</el-button>
@@ -103,33 +103,33 @@
         <div v-if="detailData.logical_interfaces && detailData.logical_interfaces.length > 0">
           <div class="section-title">逻辑接口配置 ({{ detailData.logical_interfaces.length }} 个)</div>
           <el-table :data="detailData.logical_interfaces" border size="small">
-            <el-table-column label="类型" width="100">
+            <el-table-column label="类型" :min-width="colWidth('port_type')">
               <template #default="{ row }">
                 <el-tag :type="row.type === 'vlanif' ? 'warning' : 'success'" size="small">
                   {{ row.type === 'vlanif' ? 'VLANIF' : 'ETH-TRUNK' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="name" label="接口名称" min-width="140" />
+            <el-table-column prop="name" label="接口名称" :min-width="colWidth('interface_name')" />
             <template v-if="hasVlanif(detailData.logical_interfaces)">
-              <el-table-column label="VLAN ID" width="90">
+              <el-table-column label="VLAN ID" :min-width="colWidth('vlan_id')">
                 <template #default="{ row }">{{ row.type === 'vlanif' ? (row.vlan_id || '—') : '—' }}</template>
               </el-table-column>
-              <el-table-column label="IP地址" min-width="130">
+              <el-table-column label="IP地址" :min-width="colWidth('ip_address')">
                 <template #default="{ row }">{{ row.type === 'vlanif' ? (row.ip_address || '—') : '—' }}</template>
               </el-table-column>
-              <el-table-column label="掩码" min-width="120">
+              <el-table-column label="掩码" :min-width="colWidth('ip_mask')">
                 <template #default="{ row }">{{ row.type === 'vlanif' ? (row.mask || '—') : '—' }}</template>
               </el-table-column>
             </template>
             <template v-if="hasEthTrunk(detailData.logical_interfaces)">
-              <el-table-column label="网络类型" width="100">
+              <el-table-column label="网络类型" :min-width="colWidth('network_type')">
                 <template #default="{ row }">
                   <span v-if="row.type === 'eth-trunk'">{{ NET_TYPE_LABEL[row.net_type] || 'Access' }}</span>
                   <span v-else>—</span>
                 </template>
               </el-table-column>
-              <el-table-column label="VLAN配置" min-width="130">
+              <el-table-column label="VLAN配置" :min-width="colWidth('vlan_config')">
                 <template #default="{ row }">
                   <span v-if="row.type === 'eth-trunk'">
                     <span v-if="row.net_type === 'access'">{{ row.vlan_id || '—' }}</span>
@@ -138,7 +138,7 @@
                   <span v-else>—</span>
                 </template>
               </el-table-column>
-              <el-table-column label="成员端口" min-width="200">
+              <el-table-column label="成员端口" :min-width="colWidth('member_ports')">
                 <template #default="{ row }">
                   <span v-if="row.type === 'eth-trunk' && row.member_ports && row.member_ports.length > 0">
                     {{ row.member_ports.join(', ') }}
@@ -147,7 +147,7 @@
                 </template>
               </el-table-column>
             </template>
-            <el-table-column prop="remark" label="备注" min-width="100" show-overflow-tooltip />
+            <el-table-column prop="remark" label="备注" :min-width="colWidth('remark')" show-overflow-tooltip />
           </el-table>
         </div>
 
@@ -155,16 +155,16 @@
         <div v-if="detailData.ports_data && detailData.ports_data.length > 0">
           <div class="section-title">物理端口配置 ({{ detailData.ports_data.length }} 个)</div>
           <el-table :data="detailPagedPorts" border size="small" style="width: 100%">
-          <el-table-column prop="index" label="#" width="48" />
-          <el-table-column prop="name" label="源接口" min-width="110" />
-          <el-table-column label="本端网络类型" width="100">
+          <el-table-column prop="index" label="#" :min-width="colWidth('index')" />
+          <el-table-column prop="name" label="源接口" :min-width="colWidth('source_interface')" />
+          <el-table-column label="本端网络类型" :min-width="colWidth('local_network_type')">
             <template #default="{ row }">
               <el-tag size="small" :type="(detailBoundTrunk(row) ? detailBoundTrunk(row).net_type : row.net_type) === 'access' ? 'info' : ((detailBoundTrunk(row) ? detailBoundTrunk(row).net_type : row.net_type) === 'trunk' ? 'warning' : 'success')">
                 {{ NET_TYPE_LABEL[detailBoundTrunk(row) ? detailBoundTrunk(row).net_type : row.net_type] || 'Access' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="VLAN" min-width="100">
+          <el-table-column label="VLAN" :min-width="colWidth('vlan')">
             <template #default="{ row }">
               <template v-if="detailBoundTrunk(row)">
                 <span v-if="detailBoundTrunk(row).net_type === 'access'">{{ detailBoundTrunk(row).vlan_id || '—' }}</span>
@@ -176,33 +176,33 @@
               </template>
             </template>
           </el-table-column>
-            <el-table-column prop="connected_device" label="目标设备" min-width="90" />
-            <el-table-column prop="connected_interface" label="目标接口" min-width="90" />
-            <el-table-column label="目标网络类型" width="100">
+            <el-table-column prop="connected_device" label="目标设备" :min-width="colWidth('connected_device')" />
+            <el-table-column prop="connected_interface" label="目标接口" :min-width="colWidth('connected_interface')" />
+            <el-table-column label="目标网络类型" :min-width="colWidth('peer_network_type')">
               <template #default="{ row }">
                 <el-tag size="small" :type="(row.remote_net_type || 'access') === 'access' ? 'info' : ((row.remote_net_type || 'access') === 'trunk' ? 'warning' : 'success')">
                   {{ NET_TYPE_LABEL[row.remote_net_type] || 'Access' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="对端VLAN" min-width="100">
+            <el-table-column label="对端VLAN" :min-width="colWidth('peer_vlan')">
               <template #default="{ row }">
                 <span v-if="(row.remote_net_type || 'access') === 'access'">{{ row.remote_vlan_id || '—' }}</span>
                 <span v-else>{{ row.remote_vlan_range || '—' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="80">
+            <el-table-column prop="status" label="状态" :min-width="colWidth('status')">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'up' ? 'success' : 'info'" size="small">{{ row.status || '—' }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="捆绑" width="100">
+            <el-table-column label="捆绑" :min-width="colWidth('bundle')">
               <template #default="{ row }">
                 <el-tag v-if="detailBoundTrunk(row)" type="success" size="small" effect="plain">捆绑 {{ detailBoundTrunk(row).name }}</el-tag>
                 <span v-else class="text-muted">—</span>
               </template>
             </el-table-column>
-            <el-table-column prop="remark" label="备注" min-width="90" show-overflow-tooltip />
+            <el-table-column prop="remark" label="备注" :min-width="colWidth('remark')" show-overflow-tooltip />
           </el-table>
           <div class="port-pager">
             <span class="port-pager-total">共 {{ detailData.ports_data.length }} 个端口</span>
@@ -274,7 +274,7 @@
           </el-button>
         </div>
         <el-table v-if="logicalInterfaces.length > 0" :data="logicalInterfaces" border size="small" style="width: 100%">
-          <el-table-column label="类型" width="140">
+          <el-table-column label="类型" :min-width="colWidth('port_type')">
             <template #default="{ row }">
               <el-select v-model="row.type" size="small" @change="onLogicalTypeChange(row)">
                 <el-option label="VLANIF接口" value="vlanif" />
@@ -282,32 +282,32 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="接口名称" min-width="160">
+          <el-table-column label="接口名称" :min-width="colWidth('interface_name')">
             <template #default="{ row }">
               <el-input v-model="row.name" size="small" :placeholder="row.type === 'vlanif' ? '如：Vlanif10' : '如：Eth-Trunk1'" />
             </template>
           </el-table-column>
           <!-- VLANIF fields -->
-          <el-table-column v-if="hasVlanif(logicalInterfaces)" label="VLAN ID" width="100">
+          <el-table-column v-if="hasVlanif(logicalInterfaces)" label="VLAN ID" :min-width="colWidth('vlan_id')">
             <template #default="{ row }">
               <el-input v-if="row.type === 'vlanif'" v-model="row.vlan_id" size="small" placeholder="如：10" />
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="hasVlanif(logicalInterfaces)" label="IP地址" min-width="150">
+          <el-table-column v-if="hasVlanif(logicalInterfaces)" label="IP地址" :min-width="colWidth('ip_address')">
             <template #default="{ row }">
               <el-input v-if="row.type === 'vlanif'" v-model="row.ip_address" size="small" placeholder="如：192.168.10.1" />
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="hasVlanif(logicalInterfaces)" label="掩码" min-width="140">
+          <el-table-column v-if="hasVlanif(logicalInterfaces)" label="掩码" :min-width="colWidth('ip_mask')">
             <template #default="{ row }">
               <el-input v-if="row.type === 'vlanif'" v-model="row.mask" size="small" placeholder="如：255.255.255.0" />
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
           <!-- ETH-TRUNK network config (maps down to bound physical ports, read-only there) -->
-          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="网络类型" width="120">
+          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="网络类型" :min-width="colWidth('network_type')">
             <template #default="{ row }">
               <el-select v-if="row.type === 'eth-trunk'" v-model="row.net_type" size="small" style="width: 100%">
                 <el-option label="Access" value="access" />
@@ -317,7 +317,7 @@
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="VLAN配置" min-width="170">
+          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="VLAN配置" :min-width="colWidth('vlan_config')">
             <template #default="{ row }">
               <template v-if="row.type === 'eth-trunk'">
                 <el-input
@@ -337,7 +337,7 @@
             </template>
           </el-table-column>
           <!-- ETH-TRUNK member ports -->
-          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="成员端口（关联物理端口）" min-width="280">
+          <el-table-column v-if="hasEthTrunk(logicalInterfaces)" label="成员端口（关联物理端口）" :min-width="colWidth('member_ports')">
             <template #default="{ row }">
               <el-select
                 v-if="row.type === 'eth-trunk'"
@@ -361,12 +361,12 @@
               <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="120">
+          <el-table-column label="备注" :min-width="colWidth('remark')">
             <template #default="{ row }">
               <el-input v-model="row.remark" size="small" placeholder="备注" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="70" fixed="right">
+          <el-table-column label="操作" :min-width="colWidth('operation')" fixed="right">
             <template #default="{ $index }">
               <el-button size="small" type="danger" link @click="removeLogicalInterface($index)">删除</el-button>
             </template>
@@ -391,15 +391,15 @@
           </el-input>
         </div>
         <el-table :data="pagedPorts" border size="small" style="width: 100%">
-          <el-table-column prop="index" label="#" width="48" />
-          <el-table-column label="源接口" min-width="120">
+          <el-table-column prop="index" label="#" :min-width="colWidth('index')" />
+          <el-table-column label="源接口" :min-width="colWidth('source_interface')">
             <template #default="{ row }">
               <el-input v-model="row.name" size="small" :disabled="!!boundTrunk(row)" placeholder="如：GigabitEthernet0/0/1" />
             </template>
           </el-table-column>
           <!-- Network type: editable for all ports (bound ETH-TRUNK ports inherit trunk
                config as default via onTrunkMembersChange, but remain editable) -->
-          <el-table-column label="本端网络类型" width="110">
+          <el-table-column label="本端网络类型" :min-width="colWidth('local_network_type')">
             <template #default="{ row }">
               <el-select v-model="row.net_type" size="small" style="width: 100%">
                 <el-option label="Access" value="access" />
@@ -410,7 +410,7 @@
             </template>
           </el-table-column>
           <!-- VLAN config: editable for all ports -->
-          <el-table-column label="VLAN" min-width="140">
+          <el-table-column label="VLAN" :min-width="colWidth('vlan')">
             <template #default="{ row }">
               <el-input
                 v-if="row.net_type === 'access'"
@@ -426,7 +426,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="目标设备" min-width="140">
+          <el-table-column label="目标设备" :min-width="colWidth('connected_device')">
             <template #default="{ row }">
               <el-select
                 v-model="row.connected_device_id"
@@ -447,7 +447,7 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="目标接口" min-width="140">
+          <el-table-column label="目标接口" :min-width="colWidth('connected_interface')">
             <template #default="{ row }">
               <el-select
                 v-model="row.connected_interface"
@@ -469,7 +469,7 @@
             </template>
           </el-table-column>
           <!-- Peer port network type & VLAN (editable even when bound to ETH-TRUNK) -->
-          <el-table-column label="目标网络类型" width="110">
+          <el-table-column label="目标网络类型" :min-width="colWidth('peer_network_type')">
             <template #default="{ row }">
               <el-select v-model="row.remote_net_type" size="small" style="width: 100%">
                 <el-option label="Access" value="access" />
@@ -478,7 +478,7 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="对端VLAN" min-width="140">
+          <el-table-column label="对端VLAN" :min-width="colWidth('peer_vlan')">
             <template #default="{ row }">
               <el-input
                 v-if="(row.remote_net_type || 'access') === 'access'"
@@ -494,7 +494,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="90">
+          <el-table-column label="状态" :min-width="colWidth('status')">
             <template #default="{ row }">
               <el-select v-model="row.status" size="small" style="width: 90px">
                 <el-option label="Up" value="up" />
@@ -503,12 +503,12 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="100">
+          <el-table-column label="备注" :min-width="colWidth('remark')">
             <template #default="{ row }">
               <el-input v-model="row.remark" size="small" :disabled="!!boundTrunk(row)" placeholder="备注" />
             </template>
           </el-table-column>
-          <el-table-column label="捆绑" width="110">
+          <el-table-column label="捆绑" :min-width="colWidth('bundle')">
             <template #default="{ row }">
               <el-tag v-if="boundTrunk(row)" type="success" size="small" effect="plain">捆绑 {{ boundTrunk(row).name }}</el-tag>
               <span v-else class="text-muted">—</span>
@@ -551,6 +551,8 @@ import { getAssets } from '@/api/asset'
 import { generatePorts, summarizePortGroups, resolveAssetPorts, generateEthPorts } from '@/utils/portNaming'
 import { DEVICE_TYPE_LABEL_MAP, getDeviceTypeIcon, DEVICE_CATEGORY_TREE } from '@/constants/vendors'
 import DeviceTypeIcon from '@/components/DeviceTypeIcon.vue'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const userStore = useUserStore()
 const loading = ref(false)
@@ -558,6 +560,7 @@ const submitting = ref(false)
 const tableData = ref([])
 const searchKeyword = ref('')
 const pagination = reactive({ page: 1, size: 15, total: 0 })
+const sortState = ref('asc')
 
 // 表格区域高度（填满视口，表格内部滚动，整页不下拉）
 const tableAreaRef = ref(null)
@@ -887,6 +890,7 @@ async function fetchData() {
       skip: (pagination.page - 1) * pagination.size,
       limit: pagination.size,
       keyword: searchKeyword.value || undefined,
+      order: sortState.value,
     })
     tableData.value = data.items || []
     pagination.total = data.total || 0
@@ -897,6 +901,12 @@ async function fetchData() {
   } finally {
     loading.value = false
   }
+}
+
+function handleSortChange({ prop, order }) {
+  if (prop !== 'id') return
+  sortState.value = sortState.value === 'desc' ? 'asc' : 'desc'
+  fetchData()
 }
 
 function handleSearch() {
@@ -1108,4 +1118,5 @@ onMounted(() => {
   max-width: 100%;
   overflow-x: auto;
 }
+
 </style>

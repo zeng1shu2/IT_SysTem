@@ -61,7 +61,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" :min-width="colWidth('operation')" fixed="right">
               <template #default="{ row }">
                 <el-button v-if="isTree && row.level === 0" size="small" link type="primary" @click="openAddSubtype(row)">添加小类</el-button>
                 <el-button size="small" link @click="openEdit(row)">编辑</el-button>
@@ -154,6 +154,7 @@ import {
   FIELD_GROUPS, listSystemFields, createSystemField, updateSystemField, deleteSystemField,
 } from '@/api/system-field'
 import { listIcons, ICON_CATEGORIES } from '@/api/icon'
+import { colWidth } from '@/constants/columnWidths'
 
 const groups = FIELD_GROUPS
 const currentGroup = ref(FIELD_GROUPS[0].code)

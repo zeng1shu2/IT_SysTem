@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
+import json
 
 from app.core.deps import get_current_admin, get_current_user, get_db
 from app.models.user import User
@@ -91,6 +92,26 @@ def update(
         obj = update_form_config(db, config_id, body)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    return FormConfigResponse.model_validate(obj)
+
+
+@router.post("/{config_id}/reset-to-default", response_model=FormConfigResponse, summary="恢复为代码默认模板")
+def reset_to_default(
+    config_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    """管理员手动将表单配置恢复为 main.py 中定义的默认模板（覆盖用户自定义）。"""
+    from app.main import DEFAULT_FORM_CONFIGS_BY_CODE
+    obj = get_form_config_by_id(db, config_id)
+    default = DEFAULT_FORM_CONFIGS_BY_CODE.get(obj.code)
+    if not default:
+        raise HTTPException(status_code=404, detail=f"未找到编码 '{obj.code}' 的代码默认模板")
+    _name, _desc, schema_list = default
+    obj.form_schema = json.dumps(schema_list, ensure_ascii=False)
+    obj.name = _name
+    db.commit()
+    db.refresh(obj)
     return FormConfigResponse.model_validate(obj)
 
 

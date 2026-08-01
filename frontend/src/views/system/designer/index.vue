@@ -20,6 +20,9 @@
         <el-button @click="handleImport">
           <el-icon><Upload /></el-icon> 导入JSON
         </el-button>
+        <el-button @click="handleResetToDefault" :disabled="!editingId" title="恢复为代码默认模板（覆盖当前自定义）">
+          <el-icon><RefreshLeft /></el-icon> 恢复默认
+        </el-button>
         <el-button type="primary" :loading="saving" @click="handleSave">
           <el-icon><Check /></el-icon> 保存
         </el-button>
@@ -392,9 +395,9 @@ import {
   CopyDocument, Close, Document, EditPen, Calendar, Switch as SwitchIcon,
   Select, CircleCheck, Box, Lock, Timer, Picture, Files, Star,
   Discount, Histogram, UploadFilled, Sort, ChromeFilled,
-  PriceTag, Minus, WarningFilled,
+  PriceTag, Minus, WarningFilled, RefreshLeft,
 } from '@element-plus/icons-vue'
-import { getFormConfigs, createFormConfig, updateFormConfig, deleteFormConfig } from '@/api/form_config'
+import { getFormConfigs, createFormConfig, updateFormConfig, deleteFormConfig, resetFormConfigToDefault } from '@/api/form_config'
 import SchemaFormRenderer from '@/components/SchemaFormRenderer.vue'
 
 // ==================== Field Type Groups ====================
@@ -712,6 +715,29 @@ async function handleSave() {
     fetchSavedForms()
   } finally {
     saving.value = false
+  }
+}
+
+async function handleResetToDefault() {
+  if (!editingId.value) {
+    ElMessage.warning('请先打开一个已保存的表单')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '确定将该表单恢复为代码默认模板？将覆盖你当前的自定义配置（恢复后仍可再次保存，或重启前随时重做）。',
+      '恢复默认确认',
+      { type: 'warning', confirmButtonText: '恢复默认' }
+    )
+  } catch {
+    return
+  }
+  try {
+    const res = await resetFormConfigToDefault(editingId.value)
+    loadForm(res)
+    ElMessage.success('已恢复为代码默认模板')
+  } catch (e) {
+    ElMessage.error('恢复失败: ' + (e.response?.data?.detail || e.message))
   }
 }
 

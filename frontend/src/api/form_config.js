@@ -29,3 +29,8 @@ export function updateFormConfig(id, data) {
 export function deleteFormConfig(id) {
   return request.delete(`/form-configs/${id}`)
 }
+
+/** 恢复为代码默认模板（管理员） */
+export function resetFormConfigToDefault(id) {
+  return request.post(`/form-configs/${id}/reset-to-default`)
+}

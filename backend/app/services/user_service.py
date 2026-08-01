@@ -17,6 +17,7 @@ def get_users(
     limit: int = 20,
     keyword: str | None = None,
     is_active: bool | None = None,
+    order: str = "asc",
 ) -> tuple[list[User], int]:
     """Get paginated user list with optional filters."""
     query = db.query(User)
@@ -32,7 +33,8 @@ def get_users(
         query = query.filter(User.is_active == is_active)
 
     total = query.count()
-    users = query.order_by(User.id.desc()).offset(skip).limit(limit).all()
+    order_col = User.id.asc() if order == "asc" else User.id.desc()
+    users = query.order_by(order_col).offset(skip).limit(limit).all()
     return users, total
 
 

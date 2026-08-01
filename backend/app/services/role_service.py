@@ -16,6 +16,7 @@ def get_roles(
     skip: int = 0,
     limit: int = 20,
     keyword: str | None = None,
+    order: str = "asc",
 ) -> tuple[list[Role], int]:
     """Get paginated role list."""
     query = db.query(Role)
@@ -27,7 +28,8 @@ def get_roles(
             )
         )
     total = query.count()
-    roles = query.order_by(Role.id.desc()).offset(skip).limit(limit).all()
+    order_col = Role.id.asc() if order == "asc" else Role.id.desc()
+    roles = query.order_by(order_col).offset(skip).limit(limit).all()
     return roles, total
 
 

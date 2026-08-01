@@ -20,6 +20,9 @@ import app.models.form_config  # noqa: F401
 import app.models.system_field  # noqa: F401
 import app.models.icon  # noqa: F401
 
+# 各表单的代码默认模板登记处：启动 seed 时填充，供"恢复为代码默认"接口查询
+DEFAULT_FORM_CONFIGS_BY_CODE = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,15 +72,14 @@ async def lifespan(app: FastAPI):
         import json
 
         def _seed_form_config(db, code, name, description, schema_list):
-            """Upsert form config: delete old and create new if schema changed."""
+            """首次启动创建默认表单；已存在则跳过，绝不覆盖用户经设计器保存的配置。"""
+            # 登记代码默认模板，供"恢复为代码默认"接口查询
+            DEFAULT_FORM_CONFIGS_BY_CODE[code] = (name, description, schema_list)
             existing = db.query(FormConfig).filter(FormConfig.code == code).first()
-            new_schema = json.dumps(schema_list, ensure_ascii=False)
             if existing:
-                # Update existing config with new schema
-                existing.form_schema = new_schema
-                existing.name = name
-                db.commit()
-                return False  # updated
+                # 已存在用户配置（可能经表单设计器修改过），启动时不覆盖，避免重启还原用户改动
+                return False  # skipped
+            new_schema = json.dumps(schema_list, ensure_ascii=False)
             form_cfg = FormConfig(
                 code=code, name=name, description=description,
                 form_schema=new_schema, is_active=True, created_by="system",

@@ -6,20 +6,20 @@
         <el-button type="primary" @click="handleAdd"><el-icon><Plus /></el-icon> 新增角色</el-button>
       </div>
       <div class="table-area" ref="tableAreaRef">
-      <el-table :data="tableData" v-loading="loading" border stripe :height="tableHeight">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="name" label="角色名称" width="140" />
-        <el-table-column prop="code" label="角色编码" width="140" />
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="permissions" label="权限" min-width="200">
+      <el-table :data="tableData" v-loading="loading" border stripe :height="tableHeight" :default-sort="{ prop: 'id', order: 'ascending' }" @sort-change="handleSortChange">
+        <IdColumn />
+        <el-table-column prop="name" label="角色名称" :min-width="colWidth('name')" show-overflow-tooltip />
+        <el-table-column prop="code" label="角色编码" :min-width="colWidth('code')" show-overflow-tooltip />
+        <el-table-column prop="description" label="描述" :min-width="colWidth('description')" show-overflow-tooltip />
+        <el-table-column prop="permissions" label="权限" :min-width="colWidth('permissions')">
           <template #default="{ row }">
             <el-tag v-for="p in row.permissions" :key="p" size="small" class="perm-tag">{{ p }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="170">
+        <el-table-column prop="created_at" label="创建时间" :min-width="colWidth('created_at')">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" :min-width="colWidth('operation')" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
@@ -64,6 +64,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRoles, createRole, updateRole, deleteRole } from '@/api/role'
 import { useTableHeight } from '@/composables/useTableHeight'
 import { getPermissionCatalog } from '@/api/permission'
+import IdColumn from '@/components/IdColumn.vue'
+import { colWidth } from '@/constants/columnWidths'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -74,6 +76,7 @@ const formRef = ref()
 const permissionCatalog = ref([])
 
 const pagination = reactive({ page: 1, size: 15, total: 0 })
+const sortState = ref('asc')
 const tableAreaRef = ref(null)
 const { tableHeight } = useTableHeight(tableAreaRef)
 const defaultForm = { name: '', code: '', description: '', permissions: [] }
@@ -92,12 +95,19 @@ async function fetchData() {
     const data = await getRoles({
       skip: (pagination.page - 1) * pagination.size,
       limit: pagination.size,
+      order: sortState.value,
     })
     tableData.value = data.items
     pagination.total = data.total
   } finally {
     loading.value = false
   }
+}
+
+function handleSortChange({ prop, order }) {
+  if (prop !== 'id') return
+  sortState.value = sortState.value === 'desc' ? 'asc' : 'desc'
+  fetchData()
 }
 
 async function fetchCatalog() {

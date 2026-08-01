@@ -50,11 +50,12 @@ def list_users(
     limit: int = Query(20, ge=1, le=100),
     keyword: str | None = Query(None),
     is_active: bool | None = Query(None),
+    order: str = Query("asc", description="ID排序: asc(正序) / desc(倒序)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get paginated user list. Requires login."""
-    users, total = get_users(db, skip=skip, limit=limit, keyword=keyword, is_active=is_active)
+    users, total = get_users(db, skip=skip, limit=limit, keyword=keyword, is_active=is_active, order=order)
     return UserListResponse(total=total, items=[_user_to_response(u) for u in users])
 
 
