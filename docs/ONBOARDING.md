@@ -115,6 +115,39 @@ npm run dev
 - 数据库每人本地一份，**不共享**（gitignore）。需要一致演示数据时，各自运行 `seed_all.py`。
 - 如需共享真实业务数据，再单独导出 `*.db` 或引入迁移工具（Alembic）。
 
+### 5.5 PR 模板与合并检查清单（dev-B → develop）
+
+B 完成功能后，在 GitHub 提 **dev-B → develop** 的 PR。下面是可复用的清单与模板。
+
+**B 提 PR 前自查：**
+- [ ] 已从 `develop` 拉取最新并 `git rebase develop`，无落后主干的冲突
+- [ ] 本地后端能启动、前端 `npm run build` 无报错
+- [ ] 若动了共享文件（`columnWidths.js` / `router/index.js` / `vendors.js` / `form_config` / `package.json` / `requirements.txt`），已在 PR 描述里说明
+- [ ] 若新增/改了表结构或演示数据，已同步更新对应 `seed_*.py`（保证 `seed_all.py` 仍可一键复跑）
+- [ ] 自测功能正常，控制台无遗留报错
+
+**PR 描述模板（直接粘贴到 PR 正文）：**
+```
+## 改动说明
+<一句话说清做了什么>
+
+## 关联模块 / 路由 / 表
+<页面或接口>
+
+## 共享文件改动
+<有/无；有的话列出来并说明原因>
+
+## 自测结果
+<怎么测的、结果如何>
+```
+
+**A（审核人）合并前检查：**
+- [ ] 代码 review 通过，风格符合 5.3 UI 约定
+- [ ] 本地/CI 构建无报错
+- [ ] 确认没有把 `*.db`、`.env`、密钥带进提交（gitignore 已挡，double check）
+- [ ] 合并方式：优先 **Squash merge**（把 B 的多个 WIP 提交压成一个干净提交）；保持 `develop` 历史线性
+- [ ] 合并后 `develop` 仍能 `seed_all.py` + 正常启动
+
 ---
 
 ## 6. 常见问题
@@ -123,3 +156,27 @@ npm run dev
 - **改了列宽不生效？** 确认是否改在 `columnWidths.js`，并浏览器硬刷新（Ctrl+Shift+R）。
 - **换行符满屏差异？** 项目已加 `.gitattributes`（`* text=auto`）；新克隆不会再有此问题。
 - **后端启动报缺少模块？** 确认已 `pip install -r requirements.txt` 且激活了 venv。
+
+---
+
+## 7. master 保护分支设置（GitHub 网页操作）
+
+`master` 是官方发版分支，必须设为受保护、禁止直接 push，强制走 PR。由仓库管理员（A）在 GitHub 网页完成：
+
+1. 打开仓库页面 `https://github.com/zeng1shu2/IT_SysTem`，点右上角 **Settings**。
+2. 左侧 **Branches**（在 "Code and automation" 分组下），点 **Add branch protection rule**。
+3. **Branch name pattern** 填 `master`，回车。
+4. 在规则里勾选（按需）：
+   - ☑ Require a pull request before merging（核心：禁止直推）
+   - ☑ Require approvals → 填 `1`（至少 1 人审核；目前即 A 自己审 B 的 develop→master PR）
+   - ☑ Dismiss stale pull request approvals when new commits are pushed（新提交后旧审核失效，可选）
+   - ☑ Require status checks to pass before merging（若以后接了 CI，选对应 check；暂未接可不勾）
+   - ☑ Do not allow bypassing the above settings（防止管理员本人绕过）
+   - ☑ Require linear history（保持线性历史，可选）
+   - ❌ **不要**勾 "Allow force pushes" / "Allow deletions"（保持默认不勾）
+5. 点 **Create / Save protection rule**。
+
+**建议顺手做：**
+- 给 `develop` 也加一条保护规则（pattern 填 `develop`，勾 Require PR + 禁止直推），这样 B 也不能直接推 `develop`，所有合入都走 PR 由 A 审核。
+- 给第二人（B）加协作权限：仓库 **Settings → Collaborators → Add people**，输入 B 的 GitHub 用户名，选 **Write** 角色，B 即可提 PR。
+- （可选）在仓库 `.github/PULL_REQUEST_TEMPLATE.md` 放一份 PR 模板，提 PR 时自动带出上面的「PR 描述模板」结构。
